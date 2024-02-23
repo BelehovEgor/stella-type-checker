@@ -1,5 +1,5 @@
 // Generated from ./stellaLexer.g4 by ANTLR 4.13.1
-package dev.ebelekhov.types.parsing;
+package dev.ebelekhov.typechecker.antlr.parser;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Token;
