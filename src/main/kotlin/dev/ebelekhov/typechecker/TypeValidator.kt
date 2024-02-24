@@ -10,20 +10,21 @@ import kotlin.system.exitProcess
 
 class TypeValidator(private val visitor: stellaParserVisitor<Type>) {
     fun accept(codeExample: String) {
+        val parser = getParser(codeExample)
+
         try {
-            parse(codeExample).accept(visitor)
+            parser.program().accept(visitor)
         }
         catch (exc: ExitException) {
-            println(exc.message)
+            println(exc.error.getMessage(parser))
             exitProcess(1)
         }
     }
 
-    private fun parse(code: String) : stellaParser.ProgramContext {
+    private fun getParser(code: String) : stellaParser {
         val lexer = stellaLexer(CharStreams.fromString(code))
         val tokens = CommonTokenStream(lexer)
-        val parser = stellaParser(tokens)
 
-        return parser.program()
+        return stellaParser(tokens)
     }
 }
