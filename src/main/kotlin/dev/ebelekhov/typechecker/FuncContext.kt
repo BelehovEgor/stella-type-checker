@@ -32,7 +32,7 @@ class FuncContext {
         return varTypes.lastOrNull()
     }
 
-    private fun addVariable(variableName: String, type: Type) {
+    fun addVariable(variableName: String, type: Type) {
         variables.getOrPut(variableName){ mutableListOf() }.add(type)
     }
 

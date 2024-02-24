@@ -1,11 +1,8 @@
 package dev.ebelekhov.typechecker
 
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
-import dev.ebelekhov.typechecker.antlr.parser.stellaParser.BindingContext
 import dev.ebelekhov.typechecker.antlr.parser.stellaParserVisitor
-import dev.ebelekhov.typechecker.errors.MissingMainError
-import dev.ebelekhov.typechecker.errors.NotAFunctionError
-import dev.ebelekhov.typechecker.errors.UndefinedVariableError
+import dev.ebelekhov.typechecker.errors.*
 import dev.ebelekhov.typechecker.types.*
 import org.antlr.v4.runtime.tree.ErrorNode
 import org.antlr.v4.runtime.tree.ParseTree
@@ -79,6 +76,8 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
                 ctx.returnExpr.accept(this)
             }
         }
+
+        funcContext.addVariable(ctx.name.text, FuncType(paramType, returnType))
 
         return FuncType(paramType, returnType)
     }
@@ -281,7 +280,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitMatch(ctx: stellaParser.MatchContext?): Type {
+    override fun visitMatch(ctx: stellaParser.MatchContext): Type {
         TODO("Not yet implemented")
     }
 
@@ -297,7 +296,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitRecord(ctx: stellaParser.RecordContext?): Type {
+    override fun visitRecord(ctx: stellaParser.RecordContext): Type {
         TODO("Not yet implemented")
     }
 
@@ -351,8 +350,14 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitDotTuple(ctx: stellaParser.DotTupleContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitDotTuple(ctx: stellaParser.DotTupleContext): Type {
+        val exprType = ctx.expr().accept(this)
+        if (exprType !is TupleType) throw ExitException(NotATupleError(exprType, ctx))
+
+        val idx = ctx.index.text.toInt()
+        if (exprType.types.size < idx) throw ExitException(TupleIndexOutOfBoundsError(idx, ctx))
+
+        return exprType.types[idx - 1]
     }
 
     override fun visitFix(ctx: stellaParser.FixContext?): Type {
@@ -367,8 +372,8 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitTuple(ctx: stellaParser.TupleContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTuple(ctx: stellaParser.TupleContext): Type {
+        return TupleType(ctx.exprs.map { it.accept(this) })
     }
 
     override fun visitConsList(ctx: stellaParser.ConsListContext?): Type {
@@ -506,16 +511,18 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitTypeRecord(ctx: stellaParser.TypeRecordContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTypeRecord(ctx: stellaParser.TypeRecordContext): Type {
+        val fields = ctx.fieldTypes.associate { Pair(it.label.text, it.accept(this)) }
+
+        return RecordType(fields)
     }
 
     override fun visitTypeList(ctx: stellaParser.TypeListContext?): Type {
         TODO("Not yet implemented")
     }
 
-    override fun visitRecordFieldType(ctx: stellaParser.RecordFieldTypeContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitRecordFieldType(ctx: stellaParser.RecordFieldTypeContext): Type {
+        return ctx.type_.accept(this)
     }
 
     override fun visitVariantFieldType(ctx: stellaParser.VariantFieldTypeContext?): Type {

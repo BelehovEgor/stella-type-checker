@@ -1,7 +1,7 @@
 package dev.ebelekhov.typechecker.types
 
-data class RecordType(val fields: List<Pair<String, Type>>) : Type {
+data class RecordType(val fields: Map<String, Type>) : Type {
     override fun toString(): String {
-        return "{${fields.joinToString(separator = ", ") { "${it.first} : ${it.second}" }}}"
+        return "{${fields.entries.joinToString { "${it.key} : ${it.value}" }}}"
     }
 }

@@ -16,7 +16,7 @@ class TypeValidator(private val visitor: stellaParserVisitor<Type>) {
             parser.program().accept(visitor)
         }
         catch (exc: ExitException) {
-            println(exc.error.getMessage(parser))
+            println(exc.error.getMessage())
             exitProcess(1)
         }
     }
