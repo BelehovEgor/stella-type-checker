@@ -142,8 +142,15 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitDotRecord(ctx: stellaParser.DotRecordContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitDotRecord(ctx: stellaParser.DotRecordContext): Type {
+        val exprType = ctx.expr_.accept(this)
+        val label = ctx.label.text
+
+        if (exprType !is RecordType) throw ExitException(NotARecordError(exprType, ctx))
+
+        if (!exprType.fields.containsKey(label)) throw ExitException(UnexpectedFieldAccessError(label, ctx))
+
+        return exprType.fields[label]!!
     }
 
     override fun visitGreaterThan(ctx: stellaParser.GreaterThanContext?): Type {
@@ -234,7 +241,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     override fun visitApplication(ctx: stellaParser.ApplicationContext): Type {
         val f = ctx.`fun`
         val fType = f.accept(this)
-        if (fType !is FuncType) throw ExitException(NotAFunctionError(f, fType))
+        if (fType !is FuncType) throw ExitException(NotAFunctionError(fType, f))
 
         val expr = ctx.expr
         funcContext.runWithExpectedReturnType(fType.argType, ctx) {
@@ -297,7 +304,9 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitRecord(ctx: stellaParser.RecordContext): Type {
-        TODO("Not yet implemented")
+        val fields = ctx.bindings.associate { Pair(it.name.text, it.rhs.accept(this)) }
+
+        return RecordType(fields)
     }
 
     override fun visitLogicAnd(ctx: stellaParser.LogicAndContext?): Type {
