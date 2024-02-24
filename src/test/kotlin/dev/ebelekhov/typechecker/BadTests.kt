@@ -18,7 +18,7 @@ class BadTests {
             .filter { item -> Files.isRegularFile(item) && item.toString().endsWith(".st") }
 
         paths.forEach {
-            val exc = assertThrows<ExitException> { TypeValidator().parse(it.readText()).accept(StellaVisitor()) }
+            val exc = assertThrows<ExitException> { TypeValidator(StellaVisitor()).accept(it.readText()) }
             assertContains(exc.toString(), it.parent.name, message = it.toString())
         }
     }

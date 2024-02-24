@@ -14,6 +14,6 @@ class OkTests {
             .walk(resourcesPath)
             .filter { item -> Files.isRegularFile(item) && item.toString().endsWith(".st") }
 
-        paths.forEach { TypeValidator().parse(it.readText()).accept(StellaVisitor()) }
+        paths.forEach { TypeValidator(StellaVisitor()).accept(it.readText()) }
     }
 }
