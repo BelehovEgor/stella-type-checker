@@ -4,12 +4,11 @@ fun main() {
     val codeExample = """
         language core;
 
-        fn main(n : Nat) -> Nat {
+        fn func(n : Nat) -> Nat {
           return n;
         }
     """.trimIndent()
 
-    val parser = Parser()
-    val typeChecker = TypeChecker()
-    parser.parse(codeExample).accept(typeChecker)
+    val typeValidator = TypeValidator(StellaVisitor())
+    typeValidator.accept(codeExample)
 }

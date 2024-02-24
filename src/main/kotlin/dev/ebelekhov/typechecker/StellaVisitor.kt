@@ -9,9 +9,8 @@ import org.antlr.v4.runtime.tree.ErrorNode
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.tree.RuleNode
 import org.antlr.v4.runtime.tree.TerminalNode
-import kotlin.system.exitProcess
 
-class TypeChecker(private val errorPrinter: ErrorPrinter = ErrorPrinter())
+class StellaVisitor(private val errorPrinter: ErrorPrinter = ErrorPrinter())
     : stellaParserVisitor<Type> {
     override fun visit(tree: ParseTree?): Type {
         TODO("Not yet implemented")
@@ -42,15 +41,18 @@ class TypeChecker(private val errorPrinter: ErrorPrinter = ErrorPrinter())
     }
 
     override fun visitProgram(ctx: stellaParser.ProgramContext): Type {
+        var programType : Type? = null
+
         for (decl in ctx.decls) {
             val type = decl.accept(this)
             if (decl is stellaParser.DeclFunContext && decl.name.text == "main") {
-                return type
+                programType = type
             }
         }
 
-        errorPrinter.print(MissingMainError())
-        exitProcess(1)
+        if (programType != null) return programType
+
+        throw ExitException(MissingMainError())
     }
 
     override fun visitLanguageCore(ctx: stellaParser.LanguageCoreContext?): Type {
@@ -62,10 +64,12 @@ class TypeChecker(private val errorPrinter: ErrorPrinter = ErrorPrinter())
     }
 
     override fun visitDeclFun(ctx: stellaParser.DeclFunContext): Type {
-        val paramType = ctx.paramDecl.accept(this)
+        val param = ctx.paramDecl
+        val paramType = param.paramType.accept(this)
         val returnType = ctx.returnType.accept(this)
+        val funcType = FuncType(paramType, returnType)
 
-        return FuncType(paramType, returnType)
+        return funcType
     }
 
     override fun visitDeclFunGeneric(ctx: stellaParser.DeclFunGenericContext?): Type {
@@ -88,7 +92,7 @@ class TypeChecker(private val errorPrinter: ErrorPrinter = ErrorPrinter())
         TODO("Not yet implemented")
     }
 
-    override fun visitParamDecl(ctx: stellaParser.ParamDeclContext?): Type {
+    override fun visitParamDecl(ctx: stellaParser.ParamDeclContext): Type {
         TODO("Not yet implemented")
     }
 
