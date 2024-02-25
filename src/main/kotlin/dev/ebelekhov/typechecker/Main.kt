@@ -2,12 +2,20 @@ package dev.ebelekhov.typechecker
 
 import java.nio.file.Paths
 import kotlin.io.path.readText
+import kotlin.system.exitProcess
 
 fun main() {
     // D:\itmo\2-sem-2023-2024\languages\project\stella-type-checker\src\test\resources\ok\sum_arg.st
     //val pathToTheFile = readln()
     //val typeValidator = TypeValidator(StellaVisitor())
-    //typeValidator.accept(Paths.get(pathToTheFile).readText())
+    //
+    //val result = typeValidator.accept(Paths.get(pathToTheFile).readText())
+    //
+    //if (result.isFailure) {
+    //    println((result.exceptionOrNull() as ExitException).error.getMessage())
+    //    exitProcess(1)
+    //}
+
 
     debug()
 }
@@ -15,21 +23,22 @@ fun main() {
 fun debug() {
     val codeExample = """
 language core;
+extend with #records;
 
-extend with #sum-types, #unit-type;
-
-fn test(first : Nat + Bool) -> Nat {
-  return match first {
-      inl(n) => n
-    | inr(_) => 0
-  }
+fn iterate(n : Nat) -> { current : Nat, next : Nat } {
+  return { current = n, next = succ(n) }
 }
 
-fn main(input : Bool) -> Nat {
-  return test(inl(0))
+fn main(n : Nat) -> Nat {
+  return iterate(0).next
 }
     """.trimIndent()
 
     val typeValidator = TypeValidator(StellaVisitor())
-    typeValidator.accept(codeExample)
+    val result = typeValidator.accept(codeExample)
+
+    if (result.isFailure) {
+        println((result.exceptionOrNull() as ExitException).error.getMessage())
+        exitProcess(1)
+    }
 }

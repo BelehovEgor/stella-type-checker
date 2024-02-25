@@ -2,13 +2,22 @@ package dev.ebelekhov.typechecker.types
 
 import dev.ebelekhov.typechecker.ExitException
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
+import dev.ebelekhov.typechecker.errors.BaseError
 import dev.ebelekhov.typechecker.errors.UnexpectedTypeForExpressionError
+import kotlin.reflect.KClass
 
 sealed interface Type {
-    fun ensure(expected: Type, expression: stellaParser.ExprContext) {
-        if (this == expected) return
+
+    fun ensure(expected: Type, expression: stellaParser.ExprContext) : Type {
+        if (this == expected) return this
 
         throw ExitException(UnexpectedTypeForExpressionError(expected, this, expression))
+    }
+
+    fun <T : Type> ensureOrError(expectedType: KClass<T>, errorFactory: (Type) -> BaseError) : T {
+        if (this::class == expectedType) return this as T
+
+        throw ExitException(errorFactory(this))
     }
 }
 

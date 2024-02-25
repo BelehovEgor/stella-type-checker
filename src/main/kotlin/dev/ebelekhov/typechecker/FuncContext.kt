@@ -5,6 +5,7 @@ import dev.ebelekhov.typechecker.types.Type
 
 class FuncContext {
     private val variables = mutableMapOf<String, MutableList<Type>>()
+    private val expectedReturnTypes = mutableListOf<Type?>()
 
     fun runWithVariable(variable: String,
                         type: Type,
@@ -17,15 +18,6 @@ class FuncContext {
         }
     }
 
-    fun runWithExpectedReturnType(expectedReturnType: Type,
-                                  expression: stellaParser.ExprContext,
-                                  action: () -> Type): Type {
-        val returnType = action()
-        returnType.ensure(expectedReturnType, expression)
-
-        return returnType
-    }
-
     fun getVariableType(variableName: String): Type? {
         val varTypes = variables.getOrDefault(variableName, null) ?: return null
 
@@ -34,6 +26,37 @@ class FuncContext {
 
     fun addVariable(variableName: String, type: Type) {
         variables.getOrPut(variableName){ mutableListOf() }.add(type)
+    }
+
+    fun runWithExpectedReturnType(expectedReturnType: Type,
+                                  expression: stellaParser.ExprContext,
+                                  action: () -> Type): Type {
+        expectedReturnTypes.add(expectedReturnType)
+
+        try {
+            val returnType = action()
+            returnType.ensure(expectedReturnType, expression)
+
+            return returnType
+        }
+        finally {
+            expectedReturnTypes.removeLast()
+        }
+    }
+
+    fun runWithoutExpectations(action: () -> Type): Type {
+        expectedReturnTypes.add(null)
+
+        try {
+            return action()
+        }
+        finally {
+            expectedReturnTypes.removeLast()
+        }
+    }
+
+    fun getCurrentExpectedReturnType() : Type? {
+        return expectedReturnTypes.lastOrNull()
     }
 
     private fun removeVariable(variableName: String) {

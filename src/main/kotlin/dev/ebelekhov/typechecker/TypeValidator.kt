@@ -6,18 +6,17 @@ import dev.ebelekhov.typechecker.antlr.parser.stellaParserVisitor
 import dev.ebelekhov.typechecker.types.Type
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
-import kotlin.system.exitProcess
 
 class TypeValidator(private val visitor: stellaParserVisitor<Type>) {
-    fun accept(codeExample: String) {
+    fun accept(codeExample: String) : Result<Unit> {
         val parser = getParser(codeExample)
 
-        try {
+        return try {
             parser.program().accept(visitor)
-        }
-        catch (exc: ExitException) {
-            println(exc.error.getMessage())
-            exitProcess(1)
+
+            Result.success(Unit)
+        } catch (exc: ExitException) {
+            Result.failure(exc)
         }
     }
 

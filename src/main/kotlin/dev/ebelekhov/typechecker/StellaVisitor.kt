@@ -1,7 +1,6 @@
 package dev.ebelekhov.typechecker
 
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
-import dev.ebelekhov.typechecker.antlr.parser.stellaParser.PatternVarContext
 import dev.ebelekhov.typechecker.antlr.parser.stellaParserVisitor
 import dev.ebelekhov.typechecker.errors.*
 import dev.ebelekhov.typechecker.types.*
@@ -43,16 +42,15 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     override fun visitProgram(ctx: stellaParser.ProgramContext): Type {
         var programType : Type? = null
 
-        for (decl in ctx.decls) {
-            val type = decl.accept(this)
-            if (decl is stellaParser.DeclFunContext && decl.name.text == "main") {
+        ctx.decls.forEach {
+            val type = it.accept(this)
+            if (it is stellaParser.DeclFunContext &&
+                it.name.text == "main") {
                 programType = type
             }
         }
 
-        if (programType != null) return programType
-
-        throw ExitException(MissingMainError())
+        return programType ?: throw ExitException(MissingMainError())
     }
 
     override fun visitLanguageCore(ctx: stellaParser.LanguageCoreContext?): Type {
@@ -116,8 +114,9 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitIsZero(ctx: stellaParser.IsZeroContext): Type {
-        val argType = ctx.n.accept(this)
-        argType.ensure(NatType, ctx)
+        funcContext.runWithExpectedReturnType(NatType, ctx) {
+            ctx.n.accept(this)
+        }
 
         return BoolType
     }
@@ -126,9 +125,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         val name = ctx.name.text
         val varType = funcContext.getVariableType(name)
 
-        if (varType != null) return varType
-
-        throw ExitException(UndefinedVariableError(name, ctx.parent))
+        return varType ?: throw ExitException(UndefinedVariableError(name, ctx.parent))
     }
 
     override fun visitTypeAbstraction(ctx: stellaParser.TypeAbstractionContext?): Type {
@@ -144,14 +141,13 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitDotRecord(ctx: stellaParser.DotRecordContext): Type {
-        val exprType = ctx.expr_.accept(this)
+        val exprType = funcContext.runWithoutExpectations { ctx.expr().accept(this) }
+        val recordType = exprType.ensureOrError(RecordType::class) { NotARecordError(it, ctx) }
+
         val label = ctx.label.text
+        if (!recordType.fields.containsKey(label)) throw ExitException(UnexpectedFieldAccessError(label, ctx))
 
-        if (exprType !is RecordType) throw ExitException(NotARecordError(exprType, ctx))
-
-        if (!exprType.fields.containsKey(label)) throw ExitException(UnexpectedFieldAccessError(label, ctx))
-
-        return exprType.fields[label]!!
+        return recordType.fields[label]!!
     }
 
     override fun visitGreaterThan(ctx: stellaParser.GreaterThanContext?): Type {
@@ -174,7 +170,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitList(ctx: stellaParser.ListContext?): Type {
+    override fun visitList(ctx: stellaParser.ListContext): Type {
         TODO("Not yet implemented")
     }
 
@@ -207,8 +203,22 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitAbstraction(ctx: stellaParser.AbstractionContext): Type {
+        val expectedFuncType = funcContext
+           .getCurrentExpectedReturnType()
+            ?.ensureOrError(FuncType::class) { type -> UnexpectedLambdaError(type, ctx) }
+
         val param = ctx.paramDecl
-        val paramType = param.stellatype().accept(this)
+        val paramType =
+            if (expectedFuncType == null)
+                funcContext.runWithoutExpectations {
+                    param.stellatype().accept(this)
+                }
+            else
+                funcContext.runWithExpectedReturnType(expectedFuncType.argType, ctx) {
+                    param.stellatype().accept(this).ensureOrError(expectedFuncType.argType::class) {
+                        UnexpectedTypeForParameterError(it, expectedFuncType.argType, ctx)
+                    }
+                }
 
         return funcContext.runWithVariable(param.name.text, paramType) {
             FuncType(paramType, ctx.returnExpr.accept(this))
@@ -236,27 +246,25 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitIf(ctx: stellaParser.IfContext): Type {
-        val condType = ctx.condition.accept(this)
-        condType.ensure(BoolType, ctx)
+        funcContext.runWithExpectedReturnType(BoolType, ctx) { ctx.condition.accept(this) }
 
         val thenType = ctx.thenExpr.accept(this)
-        val elseType = ctx.elseExpr.accept(this)
-        thenType.ensure(elseType, ctx)
+        funcContext.runWithExpectedReturnType(thenType, ctx) { ctx.elseExpr.accept(this) }
 
         return thenType
     }
 
     override fun visitApplication(ctx: stellaParser.ApplicationContext): Type {
-        val f = ctx.`fun`
-        val fType = f.accept(this)
-        if (fType !is FuncType) throw ExitException(NotAFunctionError(fType, f))
+        val funType =
+            funcContext
+                .runWithoutExpectations { ctx.`fun`.accept(this) }
+                .ensureOrError(FuncType::class) { NotAFunctionError(it, ctx.`fun`) }
 
-        val expr = ctx.expr
-        funcContext.runWithExpectedReturnType(fType.argType, ctx) {
-            expr.accept(this)
+        funcContext.runWithExpectedReturnType(funType.argType, ctx) {
+            ctx.expr.accept(this)
         }
 
-        return fType.returnType
+        return funType.returnType
     }
 
     override fun visitDeref(ctx: stellaParser.DerefContext?): Type {
@@ -276,11 +284,9 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitSucc(ctx: stellaParser.SuccContext): Type {
-        val n = ctx.n
-        val nType = n.accept(this)
-        nType.ensure(NatType, ctx)
-
-        return NatType
+        return funcContext.runWithExpectedReturnType(NatType, ctx) {
+            ctx.n.accept(this)
+        }
     }
 
     override fun visitInl(ctx: stellaParser.InlContext?): Type {
@@ -311,8 +317,8 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitParenthesisedExpr(ctx: stellaParser.ParenthesisedExprContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitParenthesisedExpr(ctx: stellaParser.ParenthesisedExprContext): Type {
+        return ctx.expr().accept(this)
     }
 
     override fun visitTail(ctx: stellaParser.TailContext?): Type {
@@ -320,9 +326,23 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitRecord(ctx: stellaParser.RecordContext): Type {
-        val fields = ctx.bindings.associate { Pair(it.name.text, it.rhs.accept(this)) }
+        val expectedType = funcContext
+            .getCurrentExpectedReturnType()
+            ?.ensureOrError(RecordType::class) { UnexpectedRecordError(ctx) }
 
-        return RecordType(fields)
+        val fields = ctx.bindings.associate { Pair(it.name.text, it.rhs.accept(this)) }
+        val recordType = RecordType(fields)
+
+        if (fields.any { expectedType?.fields?.containsKey(it.key) == false }) {
+            throw ExitException(UnexpectedRecordFieldsError(recordType, expectedType!!, ctx))
+        }
+
+        if (expectedType != null &&
+            expectedType.fields.any { !fields.containsKey(it.key) }) {
+            throw ExitException(MissingRecordFieldsError(recordType, expectedType, ctx))
+        }
+
+        return recordType
     }
 
     override fun visitLogicAnd(ctx: stellaParser.LogicAndContext?): Type {
@@ -350,19 +370,19 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitTypeAsc(ctx: stellaParser.TypeAscContext): Type {
-        return ctx.accept(this)
+        val expectedType = ctx.stellatype().accept(this)
+        return funcContext
+            .runWithExpectedReturnType(expectedType, ctx) { ctx.expr().accept(this) }
     }
 
     override fun visitNatRec(ctx: stellaParser.NatRecContext): Type {
-        val until = ctx.n
-        until.accept(this).ensure(NatType, ctx)
+        funcContext.runWithExpectedReturnType(NatType, ctx) { ctx.n.accept(this) }
 
-        val z = ctx.initial
-        val zType = z.accept(this)
+        val zType = funcContext.runWithoutExpectations { ctx.initial.accept(this) }
 
-        val s = ctx.step
-        val sType = s.accept(this)
-        sType.ensure(FuncType(NatType, FuncType(zType, zType)), ctx)
+        funcContext.runWithExpectedReturnType(FuncType(NatType, FuncType(zType, zType)), ctx) {
+            ctx.step.accept(this)
+        }
 
         return zType
     }
@@ -376,13 +396,13 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitDotTuple(ctx: stellaParser.DotTupleContext): Type {
-        val exprType = ctx.expr().accept(this)
-        if (exprType !is TupleType) throw ExitException(NotATupleError(exprType, ctx))
+        val exprType = funcContext.runWithoutExpectations { ctx.expr().accept(this) }
+        val tupleType = exprType.ensureOrError(TupleType::class) { NotATupleError(it, ctx) }
 
         val idx = ctx.index.text.toInt()
-        if (exprType.types.size < idx) throw ExitException(TupleIndexOutOfBoundsError(idx, ctx))
+        if (tupleType.types.size < idx) throw ExitException(TupleIndexOutOfBoundsError(idx, ctx))
 
-        return exprType.types[idx - 1]
+        return tupleType.types[idx - 1]
     }
 
     override fun visitFix(ctx: stellaParser.FixContext?): Type {
@@ -398,6 +418,15 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitTuple(ctx: stellaParser.TupleContext): Type {
+        val tupleType = funcContext
+            .getCurrentExpectedReturnType()
+            ?.ensureOrError(TupleType::class) { UnexpectedTupleError(it, ctx) }
+
+        if (tupleType != null &&
+            tupleType.types.size != ctx.exprs.size) {
+            throw ExitException(UnexpectedTupleLengthError(tupleType, ctx))
+        }
+
         return TupleType(ctx.exprs.map { it.accept(this) })
     }
 
@@ -522,7 +551,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitTypeParens(ctx: stellaParser.TypeParensContext): Type {
-        return ctx.type_.accept(this)
+        return ctx.stellatype().accept(this)
     }
 
     override fun visitTypeFun(ctx: stellaParser.TypeFunContext): Type {
@@ -543,14 +572,14 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitTypeList(ctx: stellaParser.TypeListContext): Type {
-        return ctx.type_.accept(this)
+        return ListType(ctx.stellatype().accept(this))
     }
 
     override fun visitRecordFieldType(ctx: stellaParser.RecordFieldTypeContext): Type {
-        return ctx.type_.accept(this)
+        return ctx.stellatype().accept(this)
     }
 
     override fun visitVariantFieldType(ctx: stellaParser.VariantFieldTypeContext): Type {
-        return ctx.type_.accept(this)
+        return ctx.stellatype().accept(this)
     }
 }
