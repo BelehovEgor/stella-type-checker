@@ -1,6 +1,7 @@
 package dev.ebelekhov.typechecker
 
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
+import dev.ebelekhov.typechecker.antlr.parser.stellaParser.PatternVarContext
 import dev.ebelekhov.typechecker.antlr.parser.stellaParserVisitor
 import dev.ebelekhov.typechecker.errors.*
 import dev.ebelekhov.typechecker.types.*
@@ -234,8 +235,15 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitIf(ctx: stellaParser.IfContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitIf(ctx: stellaParser.IfContext): Type {
+        val condType = ctx.condition.accept(this)
+        condType.ensure(BoolType, ctx)
+
+        val thenType = ctx.thenExpr.accept(this)
+        val elseType = ctx.elseExpr.accept(this)
+        thenType.ensure(elseType, ctx)
+
+        return thenType
     }
 
     override fun visitApplication(ctx: stellaParser.ApplicationContext): Type {
@@ -288,7 +296,15 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitMatch(ctx: stellaParser.MatchContext): Type {
-        TODO("Not yet implemented")
+        val matchCaseType = ctx.matchCase.accept(this)
+        val cases = ctx.cases
+        if (cases.isEmpty()) {
+            throw ExitException(IllegalEmptyMatchingError(ctx))
+        }
+        var casesType = ctx.cases.map { it.accept(this) }
+
+
+        return NatType
     }
 
     override fun visitLogicNot(ctx: stellaParser.LogicNotContext?): Type {
@@ -333,8 +349,8 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitTypeAsc(ctx: stellaParser.TypeAscContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTypeAsc(ctx: stellaParser.TypeAscContext): Type {
+        return ctx.accept(this)
     }
 
     override fun visitNatRec(ctx: stellaParser.NatRecContext): Type {
@@ -397,7 +413,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitMatchCase(ctx: stellaParser.MatchCaseContext?): Type {
+    override fun visitMatchCase(ctx: stellaParser.MatchCaseContext): Type {
         TODO("Not yet implemented")
     }
 
@@ -505,8 +521,8 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitTypeParens(ctx: stellaParser.TypeParensContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTypeParens(ctx: stellaParser.TypeParensContext): Type {
+        return ctx.type_.accept(this)
     }
 
     override fun visitTypeFun(ctx: stellaParser.TypeFunContext): Type {
@@ -526,15 +542,15 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return RecordType(fields)
     }
 
-    override fun visitTypeList(ctx: stellaParser.TypeListContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTypeList(ctx: stellaParser.TypeListContext): Type {
+        return ctx.type_.accept(this)
     }
 
     override fun visitRecordFieldType(ctx: stellaParser.RecordFieldTypeContext): Type {
         return ctx.type_.accept(this)
     }
 
-    override fun visitVariantFieldType(ctx: stellaParser.VariantFieldTypeContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitVariantFieldType(ctx: stellaParser.VariantFieldTypeContext): Type {
+        return ctx.type_.accept(this)
     }
 }
