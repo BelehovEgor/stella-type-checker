@@ -17,7 +17,7 @@ class OkTests {
         paths.forEach {
             try {
                 val result = TypeValidator(StellaVisitor()).accept(it.readText())
-                assert(result.isSuccess)
+                assert(result.isSuccess) { it }
             }
             catch (exc: NotImplementedError) {
                 assert(true)

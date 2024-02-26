@@ -66,6 +66,8 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         val paramType = param.paramType.accept(this)
         val returnType = ctx.returnType.accept(this)
 
+        funcContext.addVariable(ctx.name.text, FuncType(paramType, returnType))
+
         funcContext.runWithVariable(
             param.name.text,
             paramType) {
@@ -75,8 +77,6 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
                 ctx.returnExpr.accept(this)
             }
         }
-
-        funcContext.addVariable(ctx.name.text, FuncType(paramType, returnType))
 
         return FuncType(paramType, returnType)
     }
@@ -114,9 +114,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitIsZero(ctx: stellaParser.IsZeroContext): Type {
-        funcContext.runWithExpectedReturnType(NatType, ctx) {
-            ctx.n.accept(this)
-        }
+        funcContext.runWithExpectedReturnType(NatType, ctx) { ctx.n.accept(this) }
 
         return BoolType
     }
@@ -171,15 +169,35 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitList(ctx: stellaParser.ListContext): Type {
-        TODO("Not yet implemented")
+        val listType = funcContext
+            .getCurrentExpectedReturnType()
+            ?.ensureOrError(ListType::class) { UnexpectedListError(ctx) }
+
+        if (ctx.exprs.isEmpty()) {
+            return listType ?: throw ExitException(AmbiguousListError(ctx))
+        }
+
+        val firstElemType =
+            if (listType != null)
+                funcContext.runWithExpectedReturnType(listType.type, ctx) { ctx.exprs.first().accept(this) }
+            else
+                funcContext.runWithoutExpectations { ctx.exprs.first().accept(this) }
+
+        ctx.exprs.forEach {
+            funcContext.runWithExpectedReturnType(firstElemType, ctx) { it.accept(this) }
+        }
+
+        return ListType(firstElemType)
     }
 
     override fun visitTryCatch(ctx: stellaParser.TryCatchContext?): Type {
         TODO("Not yet implemented")
     }
 
-    override fun visitHead(ctx: stellaParser.HeadContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitHead(ctx: stellaParser.HeadContext): Type {
+        return funcContext.runWithoutExpectations {
+            ctx.list.accept(this).ensureOrError(ListType::class) { NotAListError(it, ctx) }.type
+        }
     }
 
     override fun visitTerminatingSemicolon(ctx: stellaParser.TerminatingSemicolonContext): Type {
@@ -210,9 +228,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         val param = ctx.paramDecl
         val paramType =
             if (expectedFuncType == null)
-                funcContext.runWithoutExpectations {
-                    param.stellatype().accept(this)
-                }
+                funcContext.runWithoutExpectations { param.stellatype().accept(this) }
             else
                 funcContext.runWithExpectedReturnType(expectedFuncType.argType, ctx) {
                     param.stellatype().accept(this).ensureOrError(expectedFuncType.argType::class) {
@@ -221,7 +237,13 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
                 }
 
         return funcContext.runWithVariable(param.name.text, paramType) {
-            FuncType(paramType, ctx.returnExpr.accept(this))
+            val returnType =
+                if (expectedFuncType?.returnType == null)
+                    funcContext.runWithoutExpectations { ctx.returnExpr.accept(this) }
+                else
+                    funcContext.runWithExpectedReturnType(expectedFuncType.returnType, ctx) { ctx.returnExpr.accept(this) }
+
+            FuncType(paramType, returnType)
         }
     }
 
@@ -229,8 +251,23 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return NatType
     }
 
-    override fun visitVariant(ctx: stellaParser.VariantContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitVariant(ctx: stellaParser.VariantContext): Type {
+        val expectedVariantType = funcContext
+            .getCurrentExpectedReturnType()
+            ?.ensureOrError(VariantType::class) { UnexpectedVariantError(it, ctx) }
+            ?: throw ExitException(AmbiguousVariantTypeError(ctx))
+
+        val variantLabel = ctx.label.text
+        val expectedLabel = expectedVariantType.variants[variantLabel]
+            ?: throw ExitException(UnexpectedVariantLabelError(
+                variantLabel,
+                funcContext.runWithoutExpectations { ctx.rhs.accept(this) },
+                expectedVariantType,
+                ctx))
+
+        funcContext.runWithExpectedReturnType(expectedLabel, ctx) { ctx.rhs.accept(this) }
+
+        return expectedVariantType
     }
 
     override fun visitConstTrue(ctx: stellaParser.ConstTrueContext?): Type {
@@ -271,8 +308,12 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitIsEmpty(ctx: stellaParser.IsEmptyContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitIsEmpty(ctx: stellaParser.IsEmptyContext): Type {
+        funcContext.runWithoutExpectations {
+            ctx.list.accept(this).ensureOrError(ListType::class) { NotAListError(it, ctx) }
+        }
+
+        return BoolType
     }
 
     override fun visitPanic(ctx: stellaParser.PanicContext?): Type {
@@ -289,40 +330,73 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         }
     }
 
-    override fun visitInl(ctx: stellaParser.InlContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitInl(ctx: stellaParser.InlContext): Type {
+        val expectedType = funcContext
+            .getCurrentExpectedReturnType()
+            ?.ensureOrError(SumType::class) { UnexpectedInjectionError(it, ctx) }
+            ?: throw ExitException(AmbiguousSumTypeError(ctx))
+
+        funcContext.runWithExpectedReturnType(expectedType.inl, ctx) {
+            ctx.expr().accept(this)
+        }
+
+        return expectedType
     }
 
     override fun visitGreaterThanOrEqual(ctx: stellaParser.GreaterThanOrEqualContext?): Type {
         TODO("Not yet implemented")
     }
 
-    override fun visitInr(ctx: stellaParser.InrContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitInr(ctx: stellaParser.InrContext): Type {
+        val expectedType = funcContext
+            .getCurrentExpectedReturnType()
+            ?.ensureOrError(SumType::class) { UnexpectedInjectionError(it, ctx) }
+            ?: throw ExitException(AmbiguousSumTypeError(ctx))
+
+        funcContext.runWithExpectedReturnType(expectedType.inr, ctx) {
+            ctx.expr().accept(this)
+        }
+
+        return expectedType
     }
 
     override fun visitMatch(ctx: stellaParser.MatchContext): Type {
-        val matchCaseType = ctx.matchCase.accept(this)
-        val cases = ctx.cases
-        if (cases.isEmpty()) {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+
+        val matchCaseType = funcContext.runWithoutExpectations { ctx.expr().accept(this) }
+        if (ctx.cases.isEmpty()) {
             throw ExitException(IllegalEmptyMatchingError(ctx))
         }
-        var casesType = ctx.cases.map { it.accept(this) }
 
+        val casesExprTypes = ctx.cases.map { case ->
+            funcContext.runWithExpectedReturnType(matchCaseType, ctx) {
+                case.pattern().accept(this).ensureOrError(matchCaseType) {
+                    UnexpectedTypeForExpressionError(it, matchCaseType, ctx)
+                }
+            }
 
-        return NatType
+            funcContext.runWithExpectedReturnType(expectedType!!, ctx) {
+                case.expr().accept(this)
+            }
+        }
+
+        // TODO ERROR_NONEXHAUSTIVE_MATCH_PATTERNS
+
+        return casesExprTypes.first()
     }
 
-    override fun visitLogicNot(ctx: stellaParser.LogicNotContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitLogicNot(ctx: stellaParser.LogicNotContext): Type {
+        return funcContext.runWithExpectedReturnType(BoolType, ctx) { ctx.expr().accept(this) }
     }
 
     override fun visitParenthesisedExpr(ctx: stellaParser.ParenthesisedExprContext): Type {
         return ctx.expr().accept(this)
     }
 
-    override fun visitTail(ctx: stellaParser.TailContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTail(ctx: stellaParser.TailContext): Type {
+        return funcContext.runWithoutExpectations {
+            ctx.list.accept(this).ensureOrError(ListType::class) { NotAListError(it, ctx) }
+        }
     }
 
     override fun visitRecord(ctx: stellaParser.RecordContext): Type {
@@ -330,7 +404,17 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             .getCurrentExpectedReturnType()
             ?.ensureOrError(RecordType::class) { UnexpectedRecordError(ctx) }
 
-        val fields = ctx.bindings.associate { Pair(it.name.text, it.rhs.accept(this)) }
+        val fields = ctx.bindings.associate {
+            val rhsExpectedType = expectedType?.fields?.get(it.name.text)
+
+            val rhsType =
+                if (rhsExpectedType == null)
+                    funcContext.runWithoutExpectations { it.rhs.accept(this) }
+                else
+                    funcContext.runWithExpectedReturnType(rhsExpectedType, ctx) { it.rhs.accept(this) }
+
+            Pair(it.name.text, rhsType)
+        }
         val recordType = RecordType(fields)
 
         if (fields.any { expectedType?.fields?.containsKey(it.key) == false }) {
@@ -345,8 +429,11 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return recordType
     }
 
-    override fun visitLogicAnd(ctx: stellaParser.LogicAndContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitLogicAnd(ctx: stellaParser.LogicAndContext): Type {
+        funcContext.runWithExpectedReturnType(BoolType, ctx) { ctx.left.accept(this) }
+        funcContext.runWithExpectedReturnType(BoolType, ctx) { ctx.right.accept(this) }
+
+        return BoolType
     }
 
     override fun visitTypeApplication(ctx: stellaParser.TypeApplicationContext?): Type {
@@ -357,16 +444,19 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitLogicOr(ctx: stellaParser.LogicOrContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitLogicOr(ctx: stellaParser.LogicOrContext): Type {
+        funcContext.runWithExpectedReturnType(BoolType, ctx) { ctx.left.accept(this) }
+        funcContext.runWithExpectedReturnType(BoolType, ctx) { ctx.right.accept(this) }
+
+        return BoolType
     }
 
     override fun visitTryWith(ctx: stellaParser.TryWithContext?): Type {
         TODO("Not yet implemented")
     }
 
-    override fun visitPred(ctx: stellaParser.PredContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitPred(ctx: stellaParser.PredContext): Type {
+        return funcContext.runWithExpectedReturnType(NatType, ctx) { ctx.n.accept(this) }
     }
 
     override fun visitTypeAsc(ctx: stellaParser.TypeAscContext): Type {
@@ -405,11 +495,11 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return tupleType.types[idx - 1]
     }
 
-    override fun visitFix(ctx: stellaParser.FixContext?): Type {
+    override fun visitFix(ctx: stellaParser.FixContext): Type {
         TODO("Not yet implemented")
     }
 
-    override fun visitLet(ctx: stellaParser.LetContext?): Type {
+    override fun visitLet(ctx: stellaParser.LetContext): Type {
         TODO("Not yet implemented")
     }
 
@@ -430,8 +520,20 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return TupleType(ctx.exprs.map { it.accept(this) })
     }
 
-    override fun visitConsList(ctx: stellaParser.ConsListContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitConsList(ctx: stellaParser.ConsListContext): Type {
+        val listType = funcContext
+            .getCurrentExpectedReturnType()
+            ?.ensureOrError(ListType::class) { UnexpectedListError(ctx) }
+
+        val headType =
+            if (listType != null)
+                funcContext.runWithExpectedReturnType(listType.type, ctx) { ctx.head.accept(this) }
+            else
+                funcContext.runWithoutExpectations { ctx.head.accept(this) }
+
+        funcContext.runWithExpectedReturnType(headType, ctx) { ctx.tail.accept(this) }
+
+        return ListType(headType)
     }
 
     override fun visitPatternBinding(ctx: stellaParser.PatternBindingContext?): Type {
@@ -443,7 +545,9 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitMatchCase(ctx: stellaParser.MatchCaseContext): Type {
-        TODO("Not yet implemented")
+        val x = ctx.pattern() // how to get variable from here and create context
+
+        return ctx.expr().accept(this)
     }
 
     override fun visitPatternVariant(ctx: stellaParser.PatternVariantContext?): Type {
@@ -475,31 +579,31 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitPatternFalse(ctx: stellaParser.PatternFalseContext?): Type {
-        TODO("Not yet implemented")
+        return BoolType
     }
 
     override fun visitPatternTrue(ctx: stellaParser.PatternTrueContext): Type {
-        TODO("Not yet implemented")
+        return BoolType
     }
 
-    override fun visitPatternUnit(ctx: stellaParser.PatternUnitContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitPatternUnit(ctx: stellaParser.PatternUnitContext): Type {
+        return UnitType
     }
 
     override fun visitPatternInt(ctx: stellaParser.PatternIntContext?): Type {
-        TODO("Not yet implemented")
+        return NatType
     }
 
     override fun visitPatternSucc(ctx: stellaParser.PatternSuccContext?): Type {
         TODO("Not yet implemented")
     }
 
-    override fun visitPatternVar(ctx: stellaParser.PatternVarContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitPatternVar(ctx: stellaParser.PatternVarContext): Type {
+        return funcContext.getCurrentExpectedReturnType()!!
     }
 
-    override fun visitParenthesisedPattern(ctx: stellaParser.ParenthesisedPatternContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitParenthesisedPattern(ctx: stellaParser.ParenthesisedPatternContext): Type {
+        return ctx.pattern().accept(this)
     }
 
     override fun visitLabelledPattern(ctx: stellaParser.LabelledPatternContext?): Type {

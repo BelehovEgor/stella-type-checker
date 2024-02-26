@@ -14,6 +14,12 @@ sealed interface Type {
         throw ExitException(UnexpectedTypeForExpressionError(expected, this, expression))
     }
 
+    fun ensureOrError(expected: Type, errorFactory: (Type) -> BaseError) : Type {
+        if (this == expected) return this
+
+        throw ExitException(errorFactory(this))
+    }
+
     fun <T : Type> ensureOrError(expectedType: KClass<T>, errorFactory: (Type) -> BaseError) : T {
         if (this::class == expectedType) return this as T
 

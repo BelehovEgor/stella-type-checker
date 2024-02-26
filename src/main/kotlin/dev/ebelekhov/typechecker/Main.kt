@@ -25,13 +25,14 @@ fun debug() {
 language core;
 extend with #records;
 
-fn iterate(n : Nat) -> { current : Nat, next : Nat } {
-  return { current = n, next = succ(n) }
+fn foo(n : Nat) -> { i : Nat, inner : {x : Bool, y : Nat} } {
+  return { i = 0, inner = { x = true, y = succ(0) }}
 }
 
 fn main(n : Nat) -> Nat {
-  return iterate(0).next
+  return foo(0).inner.y
 }
+
     """.trimIndent()
 
     val typeValidator = TypeValidator(StellaVisitor())
