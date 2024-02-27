@@ -25,7 +25,7 @@ class BadTests {
                     message = it.toString())
             }
             catch (exc: NotImplementedError) {
-                assert(true)
+                assert(false) { it.fileName }
             }
         }
     }

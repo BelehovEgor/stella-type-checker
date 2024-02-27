@@ -4,17 +4,26 @@ import dev.ebelekhov.typechecker.antlr.parser.stellaParser
 import dev.ebelekhov.typechecker.types.Type
 
 class FuncContext {
-    private val variables = mutableMapOf<String, MutableList<Type>>()
+    private var variables = mutableMapOf<String, MutableList<Type>>()
     private val expectedReturnTypes = mutableListOf<Type?>()
 
-    fun runWithVariable(variable: String,
-                        type: Type,
-                        action: () -> Type): Type {
-        addVariable(variable, type)
+    fun runWithVariables(variables : List<Pair<String, Type>>,
+                         action: () -> Type): Type {
+        variables.forEach { addVariable(it.first, it.second) }
         try {
             return action()
         } finally {
-            removeVariable(variable)
+            variables.forEach { removeVariable(it.first) }
+        }
+    }
+
+    fun runWithPatternVariable(action: () -> Type): Type {
+        val copyState = variables.toMutableMap()
+
+        try {
+            return action()
+        } finally {
+            variables = copyState
         }
     }
 

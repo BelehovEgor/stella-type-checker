@@ -9,11 +9,11 @@ class UnexpectedVariantError(
 ) : BaseError() {
     override fun getMessage(): String {
         return """
-           ERROR_UNEXPECTED_VARIANT:
-             получена вариант 
-               ${expression.text}
-             но ожидается не вариантный тип
-               $expected
+            ERROR_UNEXPECTED_VARIANT:
+                получена вариант 
+                    ${expression.text}
+                но ожидается не вариантный тип
+                    $expected
        """.trimIndent()
     }
 

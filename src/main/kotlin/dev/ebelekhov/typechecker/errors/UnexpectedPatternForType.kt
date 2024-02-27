@@ -5,16 +5,13 @@ import dev.ebelekhov.typechecker.types.Type
 
 class UnexpectedPatternForTypeError(
     private val actual: Type,
-    private val expected: Type,
     private val ctx: stellaParser.PatternContext) : BaseError() {
     override fun getMessage(): String {
         return """
-            ERROR_UNEXPECTED_PATTERN_FOR_TYPE
-                для выражения
+            ERROR_UNEXPECTED_PATTERN_FOR_TYPE:
+                образец
                     ${ctx.text}
-                ожидается 
-                    $expected
-                но получен тип
+                не соответствует типу разбираемого выражения
                     $actual
         """.trimIndent()
     }

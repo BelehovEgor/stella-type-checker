@@ -20,7 +20,7 @@ class OkTests {
                 assert(result.isSuccess) { it }
             }
             catch (exc: NotImplementedError) {
-                assert(true)
+                assert(false) { it.fileName }
             }
         }
     }
