@@ -7,6 +7,12 @@ import org.antlr.v4.runtime.CommonTokenStream
 import kotlin.system.exitProcess
 
 fun main() {
+    // debug()
+
+    run()
+}
+
+fun run() {
     val code = readCode()
 
     val parser = getParser(code)
@@ -41,11 +47,8 @@ fun debug() {
     val codeExample = """
 language core;
 
-extend with #fixpoint-combinator;
-
-
-fn main(n : Nat) -> Nat {
-  return fix(true);
+fn main(n : Nat) -> Bool {
+    return if true then false else 0
 }
     """.trimIndent()
 

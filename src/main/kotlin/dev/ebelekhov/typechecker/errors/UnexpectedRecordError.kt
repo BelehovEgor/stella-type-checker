@@ -1,13 +1,14 @@
 package dev.ebelekhov.typechecker.errors
 
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
+import org.antlr.v4.runtime.RuleContext
 
-class UnexpectedRecordError(private val expression: stellaParser.ExprContext) : BaseError() {
+class UnexpectedRecordError(private val ctx: RuleContext) : BaseError() {
     override fun getMessage(parser: stellaParser): String {
         return """
             ERROR_UNEXPECTED_RECORD
                 для выражения
-                    ${expression.toStringTree(parser)}
+                    ${ctx.toStringTree(parser)}
                 ожидается не запись
         """.trimIndent()
     }

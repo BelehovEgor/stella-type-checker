@@ -626,11 +626,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         val expectedVarType = expectedType.variants[ctx.label.text]
             ?: throw ExitException(UnexpectedPatternForTypeError(expectedType, ctx))
 
-        funcContext.runWithExpectedReturnType(
-            expectedVarType,
-            (ctx.parent as stellaParser.MatchCaseContext).expr()) {
-            ctx.pattern().accept(this)
-        }
+        funcContext.runWithExpectedReturnType(expectedVarType, ctx) { ctx.pattern().accept(this) }
 
         return expectedType
     }
@@ -640,11 +636,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             .getCurrentExpectedReturnType()!!
             .ensureOrError(SumType::class) { UnexpectedPatternForTypeError(it, ctx) }
 
-        funcContext.runWithExpectedReturnType(
-            expectedType.inl,
-            (ctx.parent as stellaParser.MatchCaseContext).expr()) {
-            ctx.pattern().accept(this)
-        }
+        funcContext.runWithExpectedReturnType(expectedType.inl, ctx) { ctx.pattern().accept(this) }
 
         return expectedType
     }
@@ -654,11 +646,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             .getCurrentExpectedReturnType()!!
             .ensureOrError(SumType::class) { UnexpectedPatternForTypeError(it, ctx) }
 
-        funcContext.runWithExpectedReturnType(
-            expectedType.inr,
-            (ctx.parent as stellaParser.MatchCaseContext).expr()) {
-            ctx.pattern().accept(this)
-        }
+        funcContext.runWithExpectedReturnType(expectedType.inr, ctx) { ctx.pattern().accept(this) }
 
         return expectedType
     }
@@ -696,9 +684,13 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitPatternSucc(ctx: stellaParser.PatternSuccContext): Type {
-        ctx.pattern().accept(this)
+        val expectedType = funcContext
+            .getCurrentExpectedReturnType()!!
+            .ensureOrError(NatType::class) { UnexpectedPatternForTypeError(it, ctx) }
 
-        return NatType
+        funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.pattern().accept(this) }
+
+        return expectedType
     }
 
     override fun visitPatternVar(ctx: stellaParser.PatternVarContext): Type {

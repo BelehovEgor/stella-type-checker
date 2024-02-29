@@ -3,18 +3,19 @@ package dev.ebelekhov.typechecker.errors
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
 import dev.ebelekhov.typechecker.types.Type
 import dev.ebelekhov.typechecker.types.VariantType
+import org.antlr.v4.runtime.RuleContext
 
 data class UnexpectedVariantLabelError(
     val label: String,
     val labelType: Type,
     val actual: VariantType,
-    val expression: stellaParser.ExprContext) : BaseError() {
+    val ctx: RuleContext) : BaseError() {
 
     override fun getMessage(parser: stellaParser): String {
         return """
             ERROR_UNEXPECTED_VARIANT_LABEL:
                 в выражении
-                    ${expression.toStringTree(parser)}
+                    ${ctx.toStringTree(parser)}
                 неожиданная метка 
                     $label : $labelType
                 для типа варианта

@@ -1,7 +1,7 @@
 package dev.ebelekhov.typechecker
 
-import dev.ebelekhov.typechecker.antlr.parser.stellaParser
 import dev.ebelekhov.typechecker.types.Type
+import org.antlr.v4.runtime.RuleContext
 
 class FuncContext {
     private var variables = mutableMapOf<String, MutableList<Type>>()
@@ -38,13 +38,13 @@ class FuncContext {
     }
 
     fun runWithExpectedReturnType(expectedReturnType: Type,
-                                  expression: stellaParser.ExprContext,
+                                  ctx: RuleContext,
                                   action: () -> Type): Type {
         expectedReturnTypes.add(expectedReturnType)
 
         try {
             val returnType = action()
-            returnType.ensure(expectedReturnType, expression)
+            returnType.ensure(expectedReturnType, ctx)
 
             return returnType
         }
