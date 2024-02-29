@@ -351,9 +351,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitSucc(ctx: stellaParser.SuccContext): Type {
-        return funcContext.runWithExpectedReturnType(NatType, ctx) {
-            ctx.n.accept(this)
-        }
+        return funcContext.runWithExpectedReturnType(NatType, ctx) { ctx.n.accept(this) }
     }
 
     override fun visitInl(ctx: stellaParser.InlContext): Type {
@@ -362,9 +360,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             ?.ensureOrError(SumType::class) { UnexpectedInjectionError(it, ctx) }
             ?: throw ExitException(AmbiguousSumTypeError(ctx))
 
-        funcContext.runWithExpectedReturnType(expectedType.inl, ctx) {
-            ctx.expr().accept(this)
-        }
+        funcContext.runWithExpectedReturnType(expectedType.inl, ctx) { ctx.expr().accept(this) }
 
         return expectedType
     }
@@ -379,9 +375,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             ?.ensureOrError(SumType::class) { UnexpectedInjectionError(it, ctx) }
             ?: throw ExitException(AmbiguousSumTypeError(ctx))
 
-        funcContext.runWithExpectedReturnType(expectedType.inr, ctx) {
-            ctx.expr().accept(this)
-        }
+        funcContext.runWithExpectedReturnType(expectedType.inr, ctx) { ctx.expr().accept(this) }
 
         return expectedType
     }
@@ -568,9 +562,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             }
         }
 
-        return funcContext.runWithVariables(patterBindings) {
-            ctx.expr().accept(this)
-        }
+        return funcContext.runWithVariables(patterBindings) { ctx.expr().accept(this) }
     }
 
     override fun visitAssign(ctx: stellaParser.AssignContext?): Type {
