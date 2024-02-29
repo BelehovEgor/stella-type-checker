@@ -3,15 +3,15 @@ package dev.ebelekhov.typechecker.errors
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
 import dev.ebelekhov.typechecker.types.Type
 
-class UnexpectedLambdaError(private val expected: Type, private val ctx: stellaParser.ExprContext) : BaseError() {
-    override fun getMessage(): String {
+class UnexpectedLambdaError(private val actual: Type, private val expression: stellaParser.ExprContext) : BaseError() {
+    override fun getMessage(parser: stellaParser): String {
         return """
             ERROR_UNEXPECTED_LAMBDA
                 для выражения
-                    ${ctx.text}
+                    ${expression.toStringTree(parser)}
                 ожидается не функциональный тип
                 но получен
-                    $expected
+                    $actual
         """.trimIndent()
     }
 

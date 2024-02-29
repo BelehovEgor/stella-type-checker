@@ -1,5 +1,9 @@
 package dev.ebelekhov.typechecker
 
+import dev.ebelekhov.typechecker.antlr.parser.stellaLexer
+import dev.ebelekhov.typechecker.antlr.parser.stellaParser
+import org.antlr.v4.runtime.CharStreams
+import org.antlr.v4.runtime.CommonTokenStream
 import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.io.path.readText
@@ -16,7 +20,10 @@ class OkTests {
 
         paths.forEach {
             try {
-                val result = TypeValidator(StellaVisitor()).accept(it.readText())
+                val lexer = stellaLexer(CharStreams.fromString(it.readText()))
+                val tokens = CommonTokenStream(lexer)
+                val parser = stellaParser(tokens)
+                val result = TypeValidator(parser, StellaVisitor()).accept()
                 assert(result.isSuccess) { it }
             }
             catch (exc: NotImplementedError) {

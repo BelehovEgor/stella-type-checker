@@ -1,23 +1,40 @@
 package dev.ebelekhov.typechecker
 
-import java.nio.file.Paths
-import kotlin.io.path.readText
+import dev.ebelekhov.typechecker.antlr.parser.stellaLexer
+import dev.ebelekhov.typechecker.antlr.parser.stellaParser
+import org.antlr.v4.runtime.CharStreams
+import org.antlr.v4.runtime.CommonTokenStream
 import kotlin.system.exitProcess
 
 fun main() {
-    // D:\itmo\2-sem-2023-2024\languages\project\stella-type-checker\src\test\resources\ok\sum_arg.st
-    //val pathToTheFile = readln()
-    //val typeValidator = TypeValidator(StellaVisitor())
-    //
-    //val result = typeValidator.accept(Paths.get(pathToTheFile).readText())
-    //
-    //if (result.isFailure) {
-    //    println((result.exceptionOrNull() as ExitException).error.getMessage())
-    //    exitProcess(1)
-    //}
+    val code = readCode()
 
+    val parser = getParser(code)
+    val typeValidator = TypeValidator(parser, StellaVisitor())
+    val result = typeValidator.accept()
 
-    debug()
+    if (result.isFailure) {
+        println((result.exceptionOrNull() as ExitException).error.getMessage(parser))
+        exitProcess(1)
+    }
+}
+
+fun readCode() : String {
+    val code = StringBuilder()
+    var line = readlnOrNull()
+    while (line != null) {
+        code.append(line)
+        line = readlnOrNull()
+    }
+
+    return code.toString()
+}
+
+fun getParser(code: String) : stellaParser {
+    val lexer = stellaLexer(CharStreams.fromString(code))
+    val tokens = CommonTokenStream(lexer)
+
+    return stellaParser(tokens)
 }
 
 fun debug() {
@@ -30,14 +47,14 @@ extend with #fixpoint-combinator;
 fn main(n : Nat) -> Nat {
   return fix(true);
 }
-
     """.trimIndent()
 
-    val typeValidator = TypeValidator(StellaVisitor())
-    val result = typeValidator.accept(codeExample)
+    val parser = getParser(codeExample)
+    val typeValidator = TypeValidator(parser, StellaVisitor())
+    val result = typeValidator.accept()
 
     if (result.isFailure) {
-        println((result.exceptionOrNull() as ExitException).error.getMessage())
+        println((result.exceptionOrNull() as ExitException).error.getMessage(parser))
         exitProcess(1)
     }
 }

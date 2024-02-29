@@ -2,12 +2,12 @@ package dev.ebelekhov.typechecker.errors
 
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
 
-class UnexpectedListError(private val ctx: stellaParser.ExprContext) : BaseError() {
-    override fun getMessage(): String {
+class UnexpectedListError(private val expression: stellaParser.ExprContext) : BaseError() {
+    override fun getMessage(parser: stellaParser): String {
         return """
             ERROR_UNEXPECTED_LIST
                 для выражения
-                    ${ctx.text}
+                    ${expression.toStringTree(parser)}
                 ожидается не список
         """.trimIndent()
     }

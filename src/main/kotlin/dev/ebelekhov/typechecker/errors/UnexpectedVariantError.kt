@@ -7,11 +7,11 @@ class UnexpectedVariantError(
     private val expected: Type,
     private val expression: stellaParser.ExprContext
 ) : BaseError() {
-    override fun getMessage(): String {
+    override fun getMessage(parser: stellaParser): String {
         return """
             ERROR_UNEXPECTED_VARIANT:
                 получена вариант 
-                    ${expression.text}
+                    ${expression.toStringTree(parser)}
                 но ожидается не вариантный тип
                     $expected
        """.trimIndent()

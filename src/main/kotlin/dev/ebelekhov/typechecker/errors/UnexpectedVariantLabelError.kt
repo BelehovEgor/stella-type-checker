@@ -7,18 +7,18 @@ import dev.ebelekhov.typechecker.types.VariantType
 data class UnexpectedVariantLabelError(
     val label: String,
     val labelType: Type,
-    val type: VariantType,
+    val actual: VariantType,
     val expression: stellaParser.ExprContext) : BaseError() {
 
-    override fun getMessage(): String {
+    override fun getMessage(parser: stellaParser): String {
         return """
             ERROR_UNEXPECTED_VARIANT_LABEL:
                 в выражении
-                    ${expression.text}
+                    ${expression.toStringTree(parser)}
                 неожиданная метка 
                     $label : $labelType
                 для типа варианта
-                    $type
+                    $actual
        """.trimIndent()
     }
 }
