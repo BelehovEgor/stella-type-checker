@@ -1,23 +1,24 @@
 # stella-type-checker
 
-Сборка проекта
+**Сборка проекта**
 
 ```bash
 ./gradlew build
 ```
 
-Запуск
-
-```bash
-java -jar build/libs/stella-type-checker.jar
-```
-
-Запуск тестов
+**Запуск тестов**
 
 ```bash
 ./gradlew test
 ```
 
-Программа при запуске ожидает программу на языке
-Stella на stdin с EOF (Ctrl+D) в конце, после чего производит
-проверку типов.
+**Запуск**
+
+```bash
+java -jar build/libs/stella-type-checker.jar
+```
+
+
+**Input**: программа на языке Stella, в конце EOF (Ctrl+D or Ctrl+Z)
+
+**Output**: результат проверки типов 
