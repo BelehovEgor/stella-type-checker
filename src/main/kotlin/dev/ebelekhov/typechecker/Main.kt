@@ -7,9 +7,9 @@ import org.antlr.v4.runtime.CommonTokenStream
 import kotlin.system.exitProcess
 
 fun main() {
-    // debug()
+    debug()
 
-    run()
+    // run()
 }
 
 fun run() {
@@ -47,8 +47,13 @@ fun debug() {
     val codeExample = """
 language core;
 
-fn main(n : Nat) -> Bool {
-    return if true then false else 0
+extend with #structural-patterns, #natural-literals, #sum-types;
+
+fn main(n : Nat + Bool) -> Nat {
+  return match n {
+    	inl(0) => 0
+    | inr(b) => 0
+   }
 }
     """.trimIndent()
 

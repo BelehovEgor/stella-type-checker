@@ -53,6 +53,18 @@ class FuncContext {
         }
     }
 
+    fun runWithPatternReturnType(expectedReturnType: Type,
+                                  action: () -> Type): Type {
+        expectedReturnTypes.add(expectedReturnType)
+
+        try {
+            return action()
+        }
+        finally {
+            expectedReturnTypes.removeLast()
+        }
+    }
+
     fun runWithoutExpectations(action: () -> Type): Type {
         expectedReturnTypes.add(null)
 
