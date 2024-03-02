@@ -4,6 +4,7 @@ import dev.ebelekhov.typechecker.antlr.parser.stellaLexer
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
+import java.lang.Exception
 import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.io.path.name
@@ -31,7 +32,7 @@ class BadTests {
                     it.parent.name,
                     message = it.toString())
             }
-            catch (exc: NotImplementedError) {
+            catch (exc: Exception) {
                 assert(false) { it.fileName }
             }
         }

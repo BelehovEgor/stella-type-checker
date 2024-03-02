@@ -7,7 +7,7 @@ import org.antlr.v4.runtime.CommonTokenStream
 import kotlin.system.exitProcess
 
 fun main() {
-    // debug()
+    //debug()
 
     run()
 }
@@ -47,9 +47,13 @@ fun debug() {
     val codeExample = """
 language core;
 
-fn main(n : Nat) -> Bool {
-    return if true then false else 0
+extend with #fixpoint-combinator;
+
+fn main(f : fn(Nat) -> Bool) -> Nat {
+  return fix(f);
 }
+
+
     """.trimIndent()
 
     val parser = getParser(codeExample)

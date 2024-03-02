@@ -20,6 +20,7 @@ sealed interface Type {
         throw ExitException(errorFactory(this))
     }
 
+    @Suppress("UNCHECKED_CAST")
     fun <T : Type> ensureOrError(expectedType: KClass<T>, errorFactory: (Type) -> BaseError) : T {
         if (this::class == expectedType) return this as T
 
