@@ -665,9 +665,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         val expressionType =
             if (expectedType != null)
                 funcContext.runWithExpectedReturnType(FuncType(listOf(expectedType), expectedType), ctx) {
-                    ctx.expr().accept(this).ensureOrError(FuncType(listOf(expectedType), expectedType)) {
-                        NotAFunctionError(it, ctx.expr())
-                    }
+                    ctx.expr().accept(this).ensureOrError(FuncType::class) { NotAFunctionError(it, ctx.expr()) }
                 }
             else
                 funcContext.runWithoutExpectations { ctx.expr().accept(this) }

@@ -7,7 +7,7 @@ import org.antlr.v4.runtime.CommonTokenStream
 import kotlin.system.exitProcess
 
 fun main() {
-    // debug()
+    //debug()
 
     run()
 }
@@ -47,15 +47,12 @@ fun debug() {
     val codeExample = """
 language core;
 
-extend with #structural-patterns, #natural-literals, #lists;
+extend with #fixpoint-combinator;
 
-fn main(n : [Nat]) -> Nat {
-  return match n {
-    	[] => 0
-    	| cons (x, cons(a, xs)) => 0
-        | cons (x, xs) => x
-   }
+fn main(f : fn(Nat) -> Bool) -> Nat {
+  return fix(f);
 }
+
 
     """.trimIndent()
 
