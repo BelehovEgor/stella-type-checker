@@ -1,7 +1,6 @@
 package dev.ebelekhov.typechecker
 
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
-import dev.ebelekhov.typechecker.antlr.parser.stellaParser.ExprContext
 import dev.ebelekhov.typechecker.antlr.parser.stellaParserVisitor
 import dev.ebelekhov.typechecker.errors.*
 import dev.ebelekhov.typechecker.types.*
@@ -82,9 +81,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             }
 
             funcContext.runWithVariables(nestedFunctions){
-                funcContext.runWithExpectedReturnType(
-                    returnType,
-                    ctx.returnExpr) {
+                funcContext.runWithExpectedReturnType(returnType, ctx.returnExpr) {
                     ctx.returnExpr.accept(this)
                 }
             }
@@ -322,22 +319,22 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitApplication(ctx: stellaParser.ApplicationContext): Type {
-        val funType =
+        val expectedFunType =
             funcContext
                 .runWithoutExpectations { ctx.`fun`.accept(this) }
                 .ensureOrError(FuncType::class) { NotAFunctionError(it, ctx.`fun`) }
 
-        if (funType.argTypes.size != ctx.args.size) {
-            throw ExitException(IncorrectNumberOfArgumentsError(ctx.args.size, funType.argTypes.size, ctx))
+        if (expectedFunType.argTypes.size != ctx.args.size) {
+            throw ExitException(IncorrectNumberOfArgumentsError(ctx.args.size, expectedFunType.argTypes.size, ctx))
         }
 
-        funType.argTypes.forEachIndexed { i, _ ->
-            funcContext.runWithExpectedReturnType(funType.argTypes[i], ctx) {
+        expectedFunType.argTypes.forEachIndexed { i, _ ->
+            funcContext.runWithExpectedReturnType(expectedFunType.argTypes[i], ctx) {
                 ctx.args[i].accept(this)
             }
         }
 
-        return funType.returnType
+        return expectedFunType.returnType
     }
 
     override fun visitDeref(ctx: stellaParser.DerefContext?): Type {
@@ -626,8 +623,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
 
     override fun visitTypeAsc(ctx: stellaParser.TypeAscContext): Type {
         val expectedType = ctx.stellatype().accept(this)
-        return funcContext
-            .runWithExpectedReturnType(expectedType, ctx) { ctx.expr().accept(this) }
+        return funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.expr().accept(this) }
     }
 
     override fun visitNatRec(ctx: stellaParser.NatRecContext): Type {
