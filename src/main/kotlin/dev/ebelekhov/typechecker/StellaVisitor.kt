@@ -4,6 +4,7 @@ import dev.ebelekhov.typechecker.antlr.parser.stellaParser
 import dev.ebelekhov.typechecker.antlr.parser.stellaParserVisitor
 import dev.ebelekhov.typechecker.errors.*
 import dev.ebelekhov.typechecker.types.*
+import dev.ebelekhov.types.parsing.stellaParser.PatternAscContext
 import org.antlr.v4.runtime.tree.ErrorNode
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.tree.RuleNode
@@ -676,6 +677,15 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             when (it.pattern()) {
                 is stellaParser.PatternVarContext ->
                     Pair((it.pattern() as stellaParser.PatternVarContext).name.text, exprType)
+                is stellaParser.ParenthesisedPatternContext -> {
+                    var resultPattern = it.pattern()
+
+                    while (resultPattern is stellaParser.ParenthesisedPatternContext) {
+                        resultPattern = resultPattern.pattern()
+                    }
+
+                    Pair((resultPattern as stellaParser.PatternVarContext).name.text, exprType)
+                }
                 else ->
                     TODO("Not yet implemented")
             }
@@ -750,7 +760,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         if (expectedVarType != null) {
             funcContext.runWithExpectedReturnType(expectedVarType, ctx) { ctx.pattern().accept(this) }
         }
-        else {
+        else if (ctx.pattern() != null) {
             funcContext.runWithoutExpectations { ctx.pattern().accept(this) }
         }
 

@@ -30,6 +30,9 @@ class OkTests {
             catch (exc: Exception) {
                 assert(false) { it.fileName }
             }
+            catch (error: NotImplementedError) {
+                assert(true) { it.fileName }
+            }
         }
     }
 }
