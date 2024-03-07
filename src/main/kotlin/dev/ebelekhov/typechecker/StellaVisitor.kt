@@ -399,14 +399,13 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             funcContext.runWithPatternVariable {
                 funcContext.runWithPatternVariable {
                     funcContext.runWithExpectedReturnType(matchCaseType, ctx) {
-                        case.pattern().accept(this).ensureOrError(matchCaseType) {
-                            UnexpectedTypeForExpressionError(it, matchCaseType, ctx)
-                        }
+                        case.pattern().accept(this)
                     }
 
-                    funcContext.runWithExpectedReturnType(expectedType!!, ctx) {
-                        case.expr().accept(this)
-                    }
+                    if (expectedType != null)
+                        funcContext.runWithExpectedReturnType(expectedType, ctx) { case.expr().accept(this) }
+                    else
+                        funcContext.runWithoutExpectations { case.expr().accept(this) }
                 }
             }
         }
@@ -713,9 +712,10 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             else
                 funcContext.runWithoutExpectations { ctx.head.accept(this) }
 
-        funcContext.runWithExpectedReturnType(headType, ctx) { ctx.tail.accept(this) }
+        val expectedListType = ListType(headType)
+        funcContext.runWithExpectedReturnType(expectedListType, ctx) { ctx.tail.accept(this) }
 
-        return ListType(headType)
+        return expectedListType
     }
 
     override fun visitPatternBinding(ctx: stellaParser.PatternBindingContext?): Type {
