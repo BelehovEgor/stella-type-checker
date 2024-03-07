@@ -4,7 +4,6 @@ import dev.ebelekhov.typechecker.antlr.parser.stellaParser
 import dev.ebelekhov.typechecker.antlr.parser.stellaParserVisitor
 import dev.ebelekhov.typechecker.errors.*
 import dev.ebelekhov.typechecker.types.*
-import dev.ebelekhov.types.parsing.stellaParser.PatternAscContext
 import org.antlr.v4.runtime.tree.ErrorNode
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.tree.RuleNode
@@ -765,6 +764,10 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         }
 
         return expectedType
+    }
+
+    override fun visitPatternAsc(ctx: stellaParser.PatternAscContext?): Type {
+        TODO("Not yet implemented")
     }
 
     override fun visitPatternInl(ctx: stellaParser.PatternInlContext): Type {
