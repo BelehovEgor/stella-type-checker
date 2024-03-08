@@ -7,9 +7,9 @@ import org.antlr.v4.runtime.CommonTokenStream
 import kotlin.system.exitProcess
 
 fun main() {
-    debug()
+    //debug()
 
-    //run()
+    run()
 }
 
 fun run() {
