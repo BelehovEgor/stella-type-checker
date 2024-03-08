@@ -7,6 +7,17 @@ class FuncContext {
     private var variables = mutableMapOf<String, MutableList<Type>>()
     private val expectedReturnTypes = mutableListOf<Type?>()
 
+    fun runWithVariable(name : String,
+                         type: Type,
+                         action: () -> Type): Type {
+        addVariable(name, type)
+        try {
+            return action()
+        } finally {
+            removeVariable(name)
+        }
+    }
+
     fun runWithVariables(variables : List<Pair<String, Type>>,
                          action: () -> Type): Type {
         variables.forEach { addVariable(it.first, it.second) }

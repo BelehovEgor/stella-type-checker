@@ -47,14 +47,13 @@ fun debug() {
     val codeExample = """
 language core;
 
-extend with  #let-patterns, #pattern-ascriptions, #let-bindings;
-
-fn foo(n : Nat) -> Nat {
-	return n
+extend with #variants, #unit-type;
+fn foo(succeed : Bool) -> <|failure : Nat, value : Nat|> {
+  	return <| value = 0 |>
 }
 
-fn main(n : Nat) -> Bool {
-    return let (x as Bool) = true in x
+fn main(succeed : Nat) -> <|value : Nat, failure : Nat|> {
+  return foo(true)
 }
     """.trimIndent()
 

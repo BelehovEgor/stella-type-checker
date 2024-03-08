@@ -40,24 +40,23 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitProgram(ctx: stellaParser.ProgramContext): Type {
-        var programType : Type? = null
-
         ctx.decls.forEach {
             val type = it.accept(this)
-            if (it is stellaParser.DeclFunContext &&
-                it.name.text == "main") {
-                programType = type
+
+            if (it is stellaParser.DeclFunContext) {
+                funcContext.addVariable(it.name.text, type)
             }
         }
 
-        if (programType == null) throw ExitException(MissingMainError())
+        val programType = funcContext.getVariableType("main") ?: throw ExitException(MissingMainError())
+        val programFuncType = programType.ensureOrError(FuncType::class) { NotAFunctionError(it, ctx) }
 
-        val mainArgsSize = (programType as FuncType).argTypes.size
+        val mainArgsSize = programFuncType.argTypes.size
         if (mainArgsSize != 1) {
             throw ExitException(IncorrectArityOfMainError(mainArgsSize))
         }
 
-        return programType!!
+        return programFuncType
     }
 
     override fun visitLanguageCore(ctx: stellaParser.LanguageCoreContext?): Type {
@@ -74,15 +73,16 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         val returnType = ctx.returnType.accept(this)
         val funcType = FuncType(paramsInfo.map { it.second }, returnType)
 
-        funcContext.addVariable(ctx.name.text, funcType)
-        funcContext.runWithVariables(paramsInfo) {
-            val nestedFunctions = ctx.localDecls.filterIsInstance<stellaParser.DeclFunContext>().map {
-                Pair(it.name.text, it.accept(this))
-            }
+        funcContext.runWithVariable(ctx.name.text, funcType) {
+            funcContext.runWithVariables(paramsInfo) {
+                val nestedFunctions = ctx.localDecls.filterIsInstance<stellaParser.DeclFunContext>().map {
+                    Pair(it.name.text, it.accept(this))
+                }
 
-            funcContext.runWithVariables(nestedFunctions){
-                funcContext.runWithExpectedReturnType(returnType, ctx.returnExpr) {
-                    ctx.returnExpr.accept(this)
+                funcContext.runWithVariables(nestedFunctions){
+                    funcContext.runWithExpectedReturnType(returnType, ctx.returnExpr) {
+                        ctx.returnExpr.accept(this)
+                    }
                 }
             }
         }
@@ -152,9 +152,9 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         val recordType = exprType.ensureOrError(RecordType::class) { NotARecordError(it, ctx) }
 
         val label = ctx.label.text
-        if (!recordType.fields.containsKey(label)) throw ExitException(UnexpectedFieldAccessError(label, ctx))
+        if (recordType.getTypeByName(label) == null) throw ExitException(UnexpectedFieldAccessError(label, ctx))
 
-        return recordType.fields[label]!!
+        return recordType.getTypeByName(label)!!
     }
 
     override fun visitGreaterThan(ctx: stellaParser.GreaterThanContext?): Type {
@@ -182,9 +182,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             .getCurrentExpectedReturnType()
             ?.ensureOrError(ListType::class) { UnexpectedListError(ctx) }
 
-        if (ctx.exprs.isEmpty()) {
-            return listType ?: throw ExitException(AmbiguousListError(ctx))
-        }
+        if (ctx.exprs.isEmpty()) { return listType ?: throw ExitException(AmbiguousListTypeError(ctx)) }
 
         val firstElemType =
             if (listType != null)
@@ -275,23 +273,19 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             ?: throw ExitException(AmbiguousVariantTypeError(ctx))
 
         val variantLabel = ctx.label.text
-        if (!expectedVariantType.variants.containsKey(variantLabel)) {
-            throw ExitException(UnexpectedVariantLabelError(
-                variantLabel,
-                expectedVariantType,
-                ctx))
-        }
+        val variantField = expectedVariantType.variants.firstOrNull { it.first == variantLabel }
+            ?: throw ExitException(UnexpectedVariantLabelError(variantLabel, expectedVariantType, ctx))
 
-        val expectedLabel = expectedVariantType.variants[variantLabel]
-        if (expectedLabel == null && ctx.rhs != null) {
+        if (variantField.second == null && ctx.rhs != null) {
             throw ExitException(UnexpectedDataForNullaryLabelError(expectedVariantType, ctx))
         }
-        if (expectedLabel != null && ctx.rhs == null) {
+
+        if (variantField.second != null && ctx.rhs == null) {
             throw ExitException(MissingDataForLabelError(expectedVariantType, ctx))
         }
 
-        if (expectedLabel != null) {
-            funcContext.runWithExpectedReturnType(expectedLabel, ctx) { ctx.rhs.accept(this) }
+        if (variantField.second != null) {
+            funcContext.runWithExpectedReturnType(variantField.second!!, ctx) { ctx.rhs.accept(this) }
         }
 
         return expectedVariantType
@@ -410,6 +404,12 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             }
         }
 
+        casesExprTypes.forEach {
+            if (it != casesExprTypes[0]) {
+                throw ExitException(UnexpectedTypeForExpressionError(casesExprTypes[0], it, ctx))
+            }
+        }
+
         if (!isExhaustiveMatchPattern(matchCaseType, ctx.cases.map { it.pattern() })) {
             throw ExitException(NonExhaustiveMatchPatternsError(matchCaseType, ctx))
         }
@@ -490,14 +490,14 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             is RecordType ->
                 expectedType.fields.all { field ->
                     isExhaustiveMatchPattern(
-                        field.value,
+                        field.second,
                         patterns
                             .filterIsInstance<stellaParser.PatternRecordContext>()
                             .filter {
                                 it.patterns.size == expectedType.fields.size &&
-                                        it.patterns.any { lp -> lp.label.text == field.key }
+                                        it.patterns.any { lp -> lp.label.text == field.first }
                             }
-                            .map { it.patterns.first { lp -> lp.label.text == field.key }.pattern() })
+                            .map { it.patterns.first { lp -> lp.label.text == field.first }.pattern() })
                 }
             is ListType -> {
                 val listPatterns = patterns
@@ -565,8 +565,8 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             .getCurrentExpectedReturnType()
             ?.ensureOrError(RecordType::class) { UnexpectedRecordError(ctx) }
 
-        val fields = ctx.bindings.associate {
-            val rhsExpectedType = expectedType?.fields?.get(it.name.text)
+        val fields = ctx.bindings.map {
+            val rhsExpectedType = expectedType?.getTypeByName(it.name.text)
 
             val rhsType =
                 if (rhsExpectedType == null)
@@ -578,16 +578,17 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         }
         val recordType = RecordType(fields)
 
-        if (fields.any { expectedType?.fields?.containsKey(it.key) == false }) {
-            throw ExitException(UnexpectedRecordFieldsError(recordType, expectedType!!, ctx))
+        if (expectedType != null &&
+            fields.any { expectedType.getTypeByName(it.first) == null }) {
+            throw ExitException(UnexpectedRecordFieldsError(recordType, expectedType, ctx))
         }
 
         if (expectedType != null &&
-            expectedType.fields.any { !fields.containsKey(it.key) }) {
+            expectedType.fields.any { expectedField -> !fields.any {expectedField.first == it.first} }) {
             throw ExitException(MissingRecordFieldsError(recordType, expectedType, ctx))
         }
 
-        return recordType
+        return expectedType ?: recordType
     }
 
     override fun visitLogicAnd(ctx: stellaParser.LogicAndContext): Type {
@@ -601,8 +602,24 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitLetRec(ctx: stellaParser.LetRecContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitLetRec(ctx: stellaParser.LetRecContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()!!
+
+        return funcContext.runWithPatternVariable {
+            ctx.patternBindings.map {
+                val patternType = funcContext.runWithoutExpectations {
+                    it.pattern().accept(this)
+                }
+
+                funcContext.runWithExpectedReturnType(patternType, ctx) {
+                    it.expr().accept(this)
+                }
+            }
+
+            funcContext.runWithExpectedReturnType(expectedType, ctx) {
+                ctx.expr().accept(this)
+            }
+        }
     }
 
     override fun visitLogicOr(ctx: stellaParser.LogicOrContext): Type {
@@ -665,32 +682,36 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             else
                 funcContext.runWithoutExpectations { ctx.expr().accept(this) }
         val funcType = expressionType.ensureOrError(FuncType::class) { NotAFunctionError(expressionType, ctx.expr()) }
+        if (funcType.argTypes.size != 1) {
+            throw ExitException(NotAFunctionError(expressionType, ctx.expr()))
+        }
 
         return funcType.argTypes.first()
     }
 
     override fun visitLet(ctx: stellaParser.LetContext): Type {
-        val patterBindings = ctx.patternBindings.map {
-            val exprType = funcContext.runWithoutExpectations { it.expr().accept(this) }
+        val expectedType = funcContext.getCurrentExpectedReturnType()
 
-            when (it.pattern()) {
-                is stellaParser.PatternVarContext ->
-                    Pair((it.pattern() as stellaParser.PatternVarContext).name.text, exprType)
-                is stellaParser.ParenthesisedPatternContext -> {
-                    var resultPattern = it.pattern()
-
-                    while (resultPattern is stellaParser.ParenthesisedPatternContext) {
-                        resultPattern = resultPattern.pattern()
-                    }
-
-                    Pair((resultPattern as stellaParser.PatternVarContext).name.text, exprType)
+        return funcContext.runWithPatternVariable {
+            ctx.patternBindings.map {
+                val exprType = funcContext.runWithoutExpectations {
+                    it.expr().accept(this)
                 }
-                else ->
-                    TODO("Not yet implemented")
-            }
-        }
 
-        return funcContext.runWithVariables(patterBindings) { ctx.expr().accept(this) }
+                funcContext.runWithExpectedReturnType(exprType, ctx) {
+                    it.pattern().accept(this)
+                }
+            }
+
+            if (expectedType != null)
+                funcContext.runWithExpectedReturnType(expectedType, ctx) {
+                    ctx.expr().accept(this)
+                }
+            else
+                funcContext.runWithoutExpectations {
+                    ctx.expr().accept(this)
+                }
+        }
     }
 
     override fun visitAssign(ctx: stellaParser.AssignContext?): Type {
@@ -702,8 +723,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             .getCurrentExpectedReturnType()
             ?.ensureOrError(TupleType::class) { UnexpectedTupleError(it, ctx) }
 
-        if (tupleType != null &&
-            tupleType.types.size != ctx.exprs.size) {
+        if (tupleType != null && tupleType.types.size != ctx.exprs.size) {
             throw ExitException(UnexpectedTupleLengthError(tupleType, ctx))
         }
 
@@ -744,20 +764,18 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             .getCurrentExpectedReturnType()!!
             .ensureOrError(VariantType::class) { UnexpectedPatternForTypeError(it, ctx) }
 
-        if (!expectedType.variants.containsKey(ctx.label.text)) {
-            throw ExitException(UnexpectedPatternForTypeError(expectedType, ctx))
-        }
+        val variantField = expectedType.variants.firstOrNull { it.first == ctx.label.text }
+            ?: throw ExitException(UnexpectedPatternForTypeError(expectedType, ctx))
 
-        val expectedVarType = expectedType.variants[ctx.label.text]
-        if (expectedVarType != null && ctx.pattern() == null) {
+        if (variantField.second != null && ctx.pattern() == null) {
             throw ExitException(UnexpectedNullaryVariantPatternError(expectedType, ctx))
         }
-        if (expectedVarType == null && ctx.pattern() != null) {
+        if (variantField.second == null && ctx.pattern() != null) {
             throw ExitException(UnexpectedNonNullaryVariantPatternError(expectedType, ctx))
         }
 
-        if (expectedVarType != null) {
-            funcContext.runWithExpectedReturnType(expectedVarType, ctx) { ctx.pattern().accept(this) }
+        if (variantField.second != null) {
+            funcContext.runWithExpectedReturnType(variantField.second!!, ctx) { ctx.pattern().accept(this) }
         }
         else if (ctx.pattern() != null) {
             funcContext.runWithoutExpectations { ctx.pattern().accept(this) }
@@ -766,8 +784,12 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return expectedType
     }
 
-    override fun visitPatternAsc(ctx: stellaParser.PatternAscContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitPatternAsc(ctx: stellaParser.PatternAscContext): Type {
+        val valType = ctx.stellatype().accept(this)
+
+        return funcContext.runWithExpectedReturnType(valType, ctx) {
+            ctx.pattern().accept(this).ensureOrError(valType) { UnexpectedPatternForTypeError(it, ctx) }
+        }
     }
 
     override fun visitPatternInl(ctx: stellaParser.PatternInlContext): Type {
@@ -815,10 +837,10 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
 
         if (ctx.patterns.size != expectedType.fields.size ||
             ctx.patterns.any {
-                !expectedType.fields.containsKey(it.label.text) ||
-                funcContext.runWithPatternReturnType(expectedType.fields[it.label.text]!!) {
+                expectedType.getTypeByName(it.label.text) == null ||
+                funcContext.runWithPatternReturnType(expectedType.getTypeByName(it.label.text)!!) {
                     it.accept(this)
-                } != expectedType.fields[it.label.text]
+                } != expectedType.getTypeByName(it.label.text)
             }) {
             throw ExitException(UnexpectedPatternForTypeError(expectedType, ctx))
         }
@@ -878,7 +900,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitPatternVar(ctx: stellaParser.PatternVarContext): Type {
-        val varType = funcContext.getCurrentExpectedReturnType()!!
+        val varType = funcContext.getCurrentExpectedReturnType() ?: throw ExitException(AmbiguousPatternTypeError(ctx))
         funcContext.addVariable(ctx.name.text, varType)
 
         return varType
@@ -925,7 +947,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitTypeVariant(ctx: stellaParser.TypeVariantContext): Type {
-        return VariantType(ctx.fieldTypes.associate { Pair(it.label.text, it.stellatype()?.accept(this))  })
+        return VariantType(ctx.fieldTypes.map { Pair(it.label.text, it.stellatype()?.accept(this))  })
     }
 
     override fun visitTypeUnit(ctx: stellaParser.TypeUnitContext?): Type {
@@ -956,7 +978,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitTypeRecord(ctx: stellaParser.TypeRecordContext): Type {
-        val fields = ctx.fieldTypes.associate { Pair(it.label.text, it.accept(this)) }
+        val fields = ctx.fieldTypes.map { Pair(it.label.text, it.accept(this)) }
 
         return RecordType(fields)
     }

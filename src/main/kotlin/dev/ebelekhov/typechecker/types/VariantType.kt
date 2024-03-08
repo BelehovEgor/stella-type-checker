@@ -1,7 +1,7 @@
 package dev.ebelekhov.typechecker.types
 
-data class VariantType(val variants: Map<String, Type?>) : Type {
+data class VariantType(val variants: List<Pair<String, Type?>>) : Type {
     override fun toString(): String {
-        return "<| ${variants.entries.joinToString { "${it.key} : ${it.value}" }} |>"
+        return "<| ${variants.joinToString { "${it.first} : ${it.second}" }} |>"
     }
 }
