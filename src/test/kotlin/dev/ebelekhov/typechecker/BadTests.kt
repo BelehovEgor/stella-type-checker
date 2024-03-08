@@ -8,6 +8,7 @@ import java.lang.Exception
 import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.io.path.name
+import kotlin.io.path.pathString
 import kotlin.io.path.readText
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -30,10 +31,10 @@ class BadTests {
                 assertContains(
                     (result.exceptionOrNull() as ExitException).error.getMessage(parser),
                     it.parent.name,
-                    message = it.toString())
+                    message = it.pathString)
             }
             catch (exc: Exception) {
-                assert(false) { it.fileName }
+                assert(false) { it.pathString }
             }
         }
     }
