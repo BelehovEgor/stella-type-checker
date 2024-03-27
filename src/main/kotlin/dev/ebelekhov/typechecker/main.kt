@@ -4,6 +4,7 @@ import dev.ebelekhov.typechecker.antlr.parser.stellaLexer
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
+import java.util.*
 import kotlin.system.exitProcess
 
 fun main() {
@@ -27,12 +28,13 @@ fun run() {
 
 fun readCode() : String {
     val code = StringBuilder()
-    var line = readlnOrNull()
-    while (line != null) {
-        code.append(line)
-        line = readlnOrNull()
+    val scanner = Scanner(System.`in`)
+    scanner.useDelimiter(System.lineSeparator())
+    while (scanner.hasNext()) {
+        code.appendLine(scanner.next())
     }
 
+    scanner.close()
     return code.toString()
 }
 
