@@ -685,6 +685,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         if (funcType.argTypes.size != 1) {
             throw ExitException(NotAFunctionError(expressionType, ctx.expr()))
         }
+        funcType.argTypes[0].ensure(funcType.returnType, ctx)
 
         return funcType.argTypes.first()
     }
