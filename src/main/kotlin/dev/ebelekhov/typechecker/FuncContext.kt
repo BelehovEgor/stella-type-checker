@@ -28,7 +28,7 @@ class FuncContext {
         }
     }
 
-    fun runWithPatternVariable(action: () -> Type): Type {
+    fun runWithScope(action: () -> Type): Type {
         val copyState = variables.toMutableMap()
 
         try {

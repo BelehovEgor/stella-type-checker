@@ -75,13 +75,17 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
 
         funcContext.runWithVariable(ctx.name.text, funcType) {
             funcContext.runWithVariables(paramsInfo) {
-                val nestedFunctions = ctx.localDecls.filterIsInstance<stellaParser.DeclFunContext>().map {
-                    Pair(it.name.text, it.accept(this))
-                }
+                funcContext.runWithScope {
+                    val nestedFunctions = ctx.localDecls.filterIsInstance<stellaParser.DeclFunContext>().map {
+                        val type = it.accept(this)
+                        funcContext.addVariable(it.name.text, type)
+                        Pair(it.name.text, type)
+                    }
 
-                funcContext.runWithVariables(nestedFunctions){
-                    funcContext.runWithExpectedReturnType(returnType, ctx.returnExpr) {
-                        ctx.returnExpr.accept(this)
+                    funcContext.runWithVariables(nestedFunctions){
+                        funcContext.runWithExpectedReturnType(returnType, ctx.returnExpr) {
+                            ctx.returnExpr.accept(this)
+                        }
                     }
                 }
             }
@@ -390,8 +394,8 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         }
 
         val casesExprTypes = ctx.cases.map { case ->
-            funcContext.runWithPatternVariable {
-                funcContext.runWithPatternVariable {
+            funcContext.runWithScope {
+                funcContext.runWithScope {
                     funcContext.runWithExpectedReturnType(matchCaseType, ctx) {
                         case.pattern().accept(this)
                     }
@@ -605,7 +609,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     override fun visitLetRec(ctx: stellaParser.LetRecContext): Type {
         val expectedType = funcContext.getCurrentExpectedReturnType()!!
 
-        return funcContext.runWithPatternVariable {
+        return funcContext.runWithScope {
             ctx.patternBindings.map {
                 val patternType = funcContext.runWithoutExpectations {
                     it.pattern().accept(this)
@@ -693,7 +697,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     override fun visitLet(ctx: stellaParser.LetContext): Type {
         val expectedType = funcContext.getCurrentExpectedReturnType()
 
-        return funcContext.runWithPatternVariable {
+        return funcContext.runWithScope {
             ctx.patternBindings.map {
                 val exprType = funcContext.runWithoutExpectations {
                     it.expr().accept(this)
