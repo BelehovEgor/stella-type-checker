@@ -8,8 +8,8 @@ class FuncContext {
     private val expectedReturnTypes = mutableListOf<Type?>()
 
     fun runWithVariable(name : String,
-                         type: Type,
-                         action: () -> Type): Type {
+                        type: Type,
+                        action: () -> Type): Type {
         addVariable(name, type)
         try {
             return action()
@@ -28,13 +28,12 @@ class FuncContext {
         }
     }
 
-    fun runWithPatternVariable(action: () -> Type): Type {
-        val copyState = variables.toMutableMap()
-
+    fun runWithScope(action: () -> Type): Type {
+        val copyState = variables.map { (key, value) -> key to value.toMutableList()}.toMap()
         try {
             return action()
         } finally {
-            variables = copyState
+            variables = copyState.toMutableMap()
         }
     }
 
@@ -65,7 +64,7 @@ class FuncContext {
     }
 
     fun runWithPatternReturnType(expectedReturnType: Type,
-                                  action: () -> Type): Type {
+                                 action: () -> Type): Type {
         expectedReturnTypes.add(expectedReturnType)
 
         try {
