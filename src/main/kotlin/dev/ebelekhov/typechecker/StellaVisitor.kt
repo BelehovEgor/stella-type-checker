@@ -395,16 +395,16 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
 
         val casesExprTypes = ctx.cases.map { case ->
             funcContext.runWithScope {
-                funcContext.runWithScope {
-                    funcContext.runWithExpectedReturnType(matchCaseType, ctx) {
-                        case.pattern().accept(this)
+                funcContext.runWithExpectedReturnType(matchCaseType, ctx) {
+                    case.pattern().accept(this).ensureOrError(matchCaseType) {
+                        UnexpectedPatternForTypeError(matchCaseType, case.pattern())
                     }
-
-                    if (expectedType != null)
-                        funcContext.runWithExpectedReturnType(expectedType, ctx) { case.expr().accept(this) }
-                    else
-                        funcContext.runWithoutExpectations { case.expr().accept(this) }
                 }
+
+                if (expectedType != null)
+                    funcContext.runWithExpectedReturnType(expectedType, ctx) { case.expr().accept(this) }
+                else
+                    funcContext.runWithoutExpectations { case.expr().accept(this) }
             }
         }
 
@@ -419,135 +419,6 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         }
 
         return casesExprTypes.first()
-    }
-
-    private fun isExhaustiveMatchPattern(expectedType: Type, patterns: List<stellaParser.PatternContext>): Boolean {
-        if (patterns.any { it is stellaParser.PatternVarContext }) return true
-
-        return when (expectedType) {
-            BoolType ->
-                patterns.any { it is stellaParser.PatternTrueContext } &&
-                patterns.any { it is stellaParser.PatternFalseContext }
-            UnitType ->
-                patterns.any { it is stellaParser.PatternUnitContext }
-            NatType -> {
-                val numbers = patterns
-                    .filterIsInstance<stellaParser.PatternIntContext>()
-                    .map { it.n.text.toInt() }
-                    .toMutableSet()
-
-                var minSuccLength : Int? = null
-                patterns
-                    .filterIsInstance<stellaParser.PatternSuccContext>()
-                    .map {
-                        var result = 0
-                        var pattern: stellaParser.PatternContext = it
-                        while (pattern is stellaParser.PatternSuccContext) {
-                            result++
-                            pattern = pattern.pattern()
-                        }
-                        Pair(result, pattern)
-                    }
-                    .sortedBy { it.first }
-                    .forEach {
-                        if (it.second is stellaParser.PatternVarContext && minSuccLength == null) {
-                            minSuccLength = it.first
-                        }
-                        else if (it.second is stellaParser.PatternIntContext){
-                            numbers.add(it.first + (it.second as stellaParser.PatternIntContext).n.text.toInt())
-                        }
-                    }
-
-                if (minSuccLength == null) return false
-
-                return (0..< minSuccLength!!).all { numbers.contains(it) }
-            }
-            is SumType ->
-                patterns.any { it is stellaParser.PatternInrContext } &&
-                patterns.any { it is stellaParser.PatternInlContext } &&
-                isExhaustiveMatchPattern(expectedType.inl, patterns.filterIsInstance<stellaParser.PatternInlContext>().map { it.pattern() }) &&
-                isExhaustiveMatchPattern(expectedType.inr, patterns.filterIsInstance<stellaParser.PatternInrContext>().map { it.pattern() })
-            is VariantType -> {
-                val variantPatterns = patterns.filterIsInstance<stellaParser.PatternVariantContext>()
-
-                expectedType.variants.all { (name, type) ->
-                    variantPatterns.any { it.label.text == name } && (
-                        (type == null) ||
-                        isExhaustiveMatchPattern(
-                            type,
-                            variantPatterns
-                                .filter { it.label.text == name }
-                                .map { it.pattern() })
-                    )
-                }
-            }
-            is TupleType ->
-                expectedType.types.withIndex().all { (idx, type) ->
-                    isExhaustiveMatchPattern(
-                        type,
-                        patterns
-                            .filterIsInstance<stellaParser.PatternTupleContext>()
-                            .filter { it.patterns.size == expectedType.types.size }
-                            .map { p -> p.patterns[idx] }
-                    )
-                }
-            is RecordType ->
-                expectedType.fields.all { field ->
-                    isExhaustiveMatchPattern(
-                        field.second,
-                        patterns
-                            .filterIsInstance<stellaParser.PatternRecordContext>()
-                            .filter {
-                                it.patterns.size == expectedType.fields.size &&
-                                        it.patterns.any { lp -> lp.label.text == field.first }
-                            }
-                            .map { it.patterns.first { lp -> lp.label.text == field.first }.pattern() })
-                }
-            is ListType -> {
-                val listPatterns = patterns
-                    .filterIsInstance<stellaParser.PatternListContext>()
-                    .map { it.patterns }
-                    .toMutableList()
-                val consWithLastVariable = mutableListOf<MutableList<stellaParser.PatternContext>>()
-
-                patterns
-                    .filterIsInstance<stellaParser.PatternConsContext>()
-                    .forEach {
-                        val nestedPatterns = mutableListOf<stellaParser.PatternContext>()
-                        var currentPattern : stellaParser.PatternContext = it
-
-                        while (currentPattern is stellaParser.PatternConsContext) {
-                            nestedPatterns.add(currentPattern.head)
-                            currentPattern = currentPattern.tail
-                        }
-
-                        if (currentPattern is stellaParser.PatternVarContext) {
-                            consWithLastVariable.add(nestedPatterns)
-                            listPatterns.add(nestedPatterns)
-                        }
-                        else if (currentPattern is stellaParser.PatternListContext) {
-                            nestedPatterns.addAll(currentPattern.patterns)
-                            listPatterns.add(nestedPatterns)
-                        }
-                    }
-
-                if (consWithLastVariable.isEmpty()) return false
-
-                return consWithLastVariable.any { consPatterns ->
-                    for (i in 0..consPatterns.size) {
-                        val patternsWithSize = listPatterns.filter { it.size == i }
-                        for (j in 0..<i) {
-                            if (!isExhaustiveMatchPattern(expectedType.type, patternsWithSize.map { it[j] })) {
-                                return false
-                            }
-                        }
-                    }
-
-                    true
-                }
-            }
-            else -> false
-        }
     }
 
     override fun visitLogicNot(ctx: stellaParser.LogicNotContext): Type {
@@ -617,6 +488,10 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
 
                 funcContext.runWithExpectedReturnType(patternType, ctx) {
                     it.expr().accept(this)
+                }
+
+                if (!isExhaustiveMatchPattern(patternType, ctx.patternBindings.map { it.pattern() })) {
+                    throw ExitException(NonExhaustiveLetPatternsError(patternType, ctx))
                 }
             }
 
@@ -703,19 +578,19 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
                     it.expr().accept(this)
                 }
 
-                funcContext.runWithExpectedReturnType(exprType, ctx) {
+                val patternType = funcContext.runWithExpectedReturnType(exprType, ctx) {
                     it.pattern().accept(this)
+                }
+
+                if (!isExhaustiveMatchPattern(patternType, ctx.patternBindings.map { it.pattern() })) {
+                    throw ExitException(NonExhaustiveLetPatternsError(patternType, ctx))
                 }
             }
 
             if (expectedType != null)
-                funcContext.runWithExpectedReturnType(expectedType, ctx) {
-                    ctx.expr().accept(this)
-                }
+                funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.expr().accept(this) }
             else
-                funcContext.runWithoutExpectations {
-                    ctx.expr().accept(this)
-                }
+                funcContext.runWithoutExpectations { ctx.expr().accept(this) }
         }
     }
 
@@ -732,7 +607,16 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
             throw ExitException(UnexpectedTupleLengthError(tupleType, ctx))
         }
 
-        return TupleType(ctx.exprs.map { it.accept(this) })
+        return TupleType(ctx.exprs.mapIndexed() { idx, value ->
+            if (tupleType != null)
+                funcContext.runWithExpectedReturnType(tupleType.types[idx], ctx) {
+                    value.accept(this)
+                }
+            else
+                funcContext.runWithoutExpectations {
+                    value.accept(this)
+                }
+        })
     }
 
     override fun visitConsList(ctx: stellaParser.ConsListContext): Type {
