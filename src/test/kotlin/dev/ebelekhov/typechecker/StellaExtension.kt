@@ -15,6 +15,7 @@ enum class StellaExtension(val extensionName: String, val on: Boolean = true) {
 
     // 2
     Sequencing("#sequencing"),
+    References("#references"),
 
     // additional extensions
     // 1

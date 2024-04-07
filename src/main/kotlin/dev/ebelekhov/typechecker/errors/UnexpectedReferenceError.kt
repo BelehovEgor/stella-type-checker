@@ -3,14 +3,13 @@ package dev.ebelekhov.typechecker.errors
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
 import org.antlr.v4.runtime.RuleContext
 
-class UnexpectedRecordError(private val ctx: RuleContext) : BaseError() {
+class UnexpectedReferenceError (private val ctx: RuleContext) : BaseError() {
     override fun getMessage(parser: stellaParser): String {
         return """
-            ERROR_UNEXPECTED_RECORD
+            ERROR_UNEXPECTED_REFERENCE
                 для выражения
                     ${ctx.toStringTree(parser)}
-                ожидается не запись
+                ожидается не ссылка
         """.trimIndent()
     }
 }
-

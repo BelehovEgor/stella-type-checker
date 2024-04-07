@@ -348,8 +348,15 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return expectedFunType.returnType
     }
 
-    override fun visitDeref(ctx: stellaParser.DerefContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitDeref(ctx: stellaParser.DerefContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+
+        val exprType = funcContext.runWithoutExpectations { ctx.expr().accept(this) }
+        val refType = exprType.ensureOrError(ReferenceType::class) { NotAReferenceError(exprType, ctx) }
+
+        if (expectedType != null) refType.innerType.ensure(expectedType, ctx)
+
+        return refType.innerType
     }
 
     override fun visitIsEmpty(ctx: stellaParser.IsEmptyContext): Type {
@@ -550,8 +557,17 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitRef(ctx: stellaParser.RefContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitRef(ctx: stellaParser.RefContext): Type {
+        val expectedType = funcContext
+            .getCurrentExpectedReturnType()
+            ?.ensureOrError(ReferenceType::class) { UnexpectedReferenceError(ctx) }
+
+        val innerType = if (expectedType != null)
+                funcContext.runWithExpectedReturnType(expectedType.innerType, ctx) { ctx.expr().accept(this) }
+            else
+                funcContext.runWithoutExpectations { ctx.expr().accept(this) }
+
+        return ReferenceType(innerType)
     }
 
     override fun visitDotTuple(ctx: stellaParser.DotTupleContext): Type {
@@ -607,8 +623,15 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         }
     }
 
-    override fun visitAssign(ctx: stellaParser.AssignContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitAssign(ctx: stellaParser.AssignContext): Type {
+        funcContext.getCurrentExpectedReturnType()?.ensure(UnitType, ctx)
+
+        val lhsType = funcContext.runWithoutExpectations { ctx.lhs.accept(this) }
+        val referenceType = lhsType.ensureOrError(ReferenceType::class) { NotAReferenceError(it, ctx) }
+
+        funcContext.runWithExpectedReturnType(referenceType.innerType, ctx) { ctx.rhs.accept(this) }
+
+        return UnitType
     }
 
     override fun visitTuple(ctx: stellaParser.TupleContext): Type {
@@ -832,8 +855,8 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return BoolType
     }
 
-    override fun visitTypeRef(ctx: stellaParser.TypeRefContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTypeRef(ctx: stellaParser.TypeRefContext): Type {
+        return ReferenceType(ctx.type_.accept(this))
     }
 
     override fun visitTypeRec(ctx: stellaParser.TypeRecContext?): Type {
