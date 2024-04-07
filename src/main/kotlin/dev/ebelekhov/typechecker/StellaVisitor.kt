@@ -223,8 +223,21 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return UnitType
     }
 
-    override fun visitSequence(ctx: stellaParser.SequenceContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitSequence(ctx: stellaParser.SequenceContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+        val unitExprs = ctx.expr().subList(0, ctx.expr().size - 1)
+        val lastExpr = ctx.expr().last()
+
+        unitExprs.forEach {
+            funcContext.runWithExpectedReturnType(UnitType, ctx) {
+                it.accept(this)
+            }
+        }
+
+        return if (expectedType != null)
+                funcContext.runWithExpectedReturnType(expectedType, ctx) { lastExpr.accept(this) }
+            else
+                funcContext.runWithoutExpectations { lastExpr.accept(this) }
     }
 
     override fun visitConstFalse(ctx: stellaParser.ConstFalseContext?): Type {

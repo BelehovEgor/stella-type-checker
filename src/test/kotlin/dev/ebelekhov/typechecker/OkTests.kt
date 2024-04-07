@@ -24,6 +24,7 @@ class OkTests {
                 val lexer = stellaLexer(CharStreams.fromString(it.readText()))
                 val tokens = CommonTokenStream(lexer)
                 val parser = stellaParser(tokens)
+
                 val result = TypeValidator(parser, StellaVisitor()).accept()
                 assert(result.isSuccess) { it }
             }
