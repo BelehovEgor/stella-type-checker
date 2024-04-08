@@ -205,6 +205,10 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
+    override fun visitTryCastAs(ctx: stellaParser.TryCastAsContext?): Type {
+        TODO("Not yet implemented")
+    }
+
     override fun visitHead(ctx: stellaParser.HeadContext): Type {
         return funcContext.runWithoutExpectations {
             ctx.list.accept(this).ensureOrError(ListType::class) { NotAListError(it, ctx) }.type
@@ -810,6 +814,10 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return UnitType
     }
 
+    override fun visitPatternCastAs(ctx: stellaParser.PatternCastAsContext?): Type {
+        TODO("Not yet implemented")
+    }
+
     override fun visitPatternInt(ctx: stellaParser.PatternIntContext?): Type {
         return NatType
     }
@@ -860,6 +868,10 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitTypeRec(ctx: stellaParser.TypeRecContext?): Type {
+        TODO("Not yet implemented")
+    }
+
+    override fun visitTypeAuto(ctx: stellaParser.TypeAutoContext?): Type {
         TODO("Not yet implemented")
     }
 
