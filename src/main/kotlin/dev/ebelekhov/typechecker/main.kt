@@ -8,9 +8,9 @@ import java.util.*
 import kotlin.system.exitProcess
 
 fun main() {
-    //debug()
+    debug()
 
-    run()
+   // run()
 }
 
 fun run() {
@@ -48,14 +48,17 @@ fun getParser(code: String) : stellaParser {
 fun debug() {
     val codeExample = """
 language core;
+extend with #exceptions, #exception-type-declaration, #variants, #structural-patterns, #open-variant-exceptions;
 
-extend with #variants, #unit-type;
-fn foo(succeed : Bool) -> <|failure : Nat, value : Nat|> {
-  	return <| value = 0 |>
+exception variant bool : Bool
+exception variant nat : Nat
+
+fn fail(n : Nat) -> Bool {
+	return throw(<| bool = true |>)
 }
 
-fn main(succeed : Nat) -> <|value : Nat, failure : Nat|> {
-  return foo(true)
+fn main(n : Nat) -> Bool {
+	return try { true } catch { <| bool = true |> => true }
 }
     """.trimIndent()
 

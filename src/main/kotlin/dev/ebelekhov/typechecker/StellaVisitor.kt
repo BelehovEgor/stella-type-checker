@@ -102,12 +102,21 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitDeclExceptionType(ctx: stellaParser.DeclExceptionTypeContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitDeclExceptionType(ctx: stellaParser.DeclExceptionTypeContext): Type {
+        val type = ctx.exceptionType.accept(this)
+
+        funcContext.addExceptionExpectedType(type)
+
+        return type
     }
 
-    override fun visitDeclExceptionVariant(ctx: stellaParser.DeclExceptionVariantContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitDeclExceptionVariant(ctx: stellaParser.DeclExceptionVariantContext): Type {
+        val name = ctx.name.text
+        val type = ctx.variantType.accept(this)
+
+        funcContext.addExceptionVariantPair(name, type)
+
+        return type
     }
 
     override fun visitInlineAnnotation(ctx: stellaParser.InlineAnnotationContext?): Type {
@@ -169,8 +178,14 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitThrow(ctx: stellaParser.ThrowContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitThrow(ctx: stellaParser.ThrowContext): Type {
+        val exceptionType = funcContext.getExceptionExpectedType()
+
+        funcContext.runWithExpectedReturnType(exceptionType, ctx) {
+            ctx.expr().accept(this)
+        }
+
+        return ErrorType(exceptionType)
     }
 
     override fun visitMultiply(ctx: stellaParser.MultiplyContext?): Type {
@@ -201,8 +216,25 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return ListType(firstElemType)
     }
 
-    override fun visitTryCatch(ctx: stellaParser.TryCatchContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTryCatch(ctx: stellaParser.TryCatchContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+        val exceptionType = funcContext.getExceptionExpectedType()
+
+        val exprType =
+            if (expectedType != null)
+                funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.tryExpr.accept(this) }
+            else
+                funcContext.runWithoutExpectations { ctx.tryExpr.accept(this) }
+
+        funcContext.runWithScope {
+            funcContext.runWithExpectedReturnType(exceptionType, ctx) {
+                ctx.pat.accept(this).ensureOrError(exceptionType) { UnexpectedPatternForTypeError(it, ctx) }
+            }
+
+            funcContext.runWithExpectedReturnType(exprType, ctx) { ctx.fallbackExpr.accept(this) }
+        }
+
+        return exprType
     }
 
     override fun visitTryCastAs(ctx: stellaParser.TryCastAsContext?): Type {
@@ -371,8 +403,10 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return BoolType
     }
 
-    override fun visitPanic(ctx: stellaParser.PanicContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitPanic(ctx: stellaParser.PanicContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+
+        return expectedType ?: BotType()
     }
 
     override fun visitLessThanOrEqual(ctx: stellaParser.LessThanOrEqualContext?): Type {
@@ -532,8 +566,21 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return BoolType
     }
 
-    override fun visitTryWith(ctx: stellaParser.TryWithContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTryWith(ctx: stellaParser.TryWithContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+
+        val tryType = funcContext.runWithoutExpectations { ctx.tryExpr.accept(this) }
+
+        if (tryType is ErrorType) {
+            val fallbackType = funcContext.runWithoutExpectations { ctx.fallbackExpr.accept(this) }
+
+            return if (fallbackType is ErrorType) expectedType ?: BotType()
+                else fallbackType
+        }
+
+        if (expectedType != null) tryType.ensure(expectedType, ctx)
+
+        return tryType
     }
 
     override fun visitPred(ctx: stellaParser.PredContext): Type {

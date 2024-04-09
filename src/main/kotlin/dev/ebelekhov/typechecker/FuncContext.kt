@@ -1,11 +1,34 @@
 package dev.ebelekhov.typechecker
 
+import dev.ebelekhov.typechecker.errors.ExceptionTypeNotDeclaredError
+import dev.ebelekhov.typechecker.types.ErrorType
 import dev.ebelekhov.typechecker.types.Type
+import dev.ebelekhov.typechecker.types.VariantType
 import org.antlr.v4.runtime.RuleContext
 
 class FuncContext {
     private var variables = mutableMapOf<String, MutableList<Type>>()
     private val expectedReturnTypes = mutableListOf<Type?>()
+    private var exceptionExpectedType : Type? = null
+    private var exceptionVariantTypes = mutableListOf<Pair<String, Type?>>()
+
+    fun addExceptionExpectedType(type: Type) {
+        exceptionExpectedType = type
+    }
+
+    fun addExceptionVariantPair(name: String, type: Type) {
+        exceptionVariantTypes.add(Pair(name, type))
+    }
+
+    fun getExceptionExpectedType() : Type {
+        if (exceptionExpectedType != null)
+            return exceptionExpectedType!!
+
+        if (exceptionVariantTypes.isNotEmpty())
+            return VariantType(exceptionVariantTypes)
+
+        throw ExitException(ExceptionTypeNotDeclaredError())
+    }
 
     fun runWithVariable(name : String,
                         type: Type,
@@ -54,7 +77,8 @@ class FuncContext {
 
         try {
             val returnType = action()
-            returnType.ensure(expectedReturnType, ctx)
+
+            if (returnType !is ErrorType) returnType.ensure(expectedReturnType, ctx)
 
             return returnType
         }
