@@ -1,12 +1,15 @@
 package dev.ebelekhov.typechecker
 
+import dev.ebelekhov.typechecker.errors.BaseError
 import dev.ebelekhov.typechecker.errors.ExceptionTypeNotDeclaredError
 import dev.ebelekhov.typechecker.types.ErrorType
+import dev.ebelekhov.typechecker.types.TopType
 import dev.ebelekhov.typechecker.types.Type
 import dev.ebelekhov.typechecker.types.VariantType
 import org.antlr.v4.runtime.RuleContext
+import kotlin.reflect.KClass
 
-class FuncContext(private val extensions: List<StellaExtension>) {
+class FuncContext(private val extensions: HashSet<StellaExtension>) {
     private var variables = mutableMapOf<String, MutableList<Type>>()
     private val expectedReturnTypes = mutableListOf<Type?>()
     private var exceptionExpectedType : Type? = null
@@ -78,7 +81,7 @@ class FuncContext(private val extensions: List<StellaExtension>) {
         try {
             val returnType = action()
 
-            if (returnType !is ErrorType) returnType.ensure(expectedReturnType, ctx)
+            ensureWithContext(returnType, expectedReturnType, ctx)
 
             return returnType
         }
@@ -112,6 +115,45 @@ class FuncContext(private val extensions: List<StellaExtension>) {
 
     fun getCurrentExpectedReturnType() : Type? {
         return expectedReturnTypes.lastOrNull()
+    }
+
+    fun  <T : Type> getCurrentExpectedReturnType(expectedType: KClass<T>, errorFactory: (Type) -> BaseError) : Type? {
+        val expected = expectedReturnTypes.lastOrNull()
+
+        if (extensions.contains(StellaExtension.StructuralSubtyping)) {
+            if (expected == TopType) return expected
+        }
+
+        return expected?.ensureOrError(expectedType, errorFactory)
+    }
+
+    fun ensureFuncArgument(actual: Type, expected: Type, ctx: RuleContext, errorFactory: (Type) -> BaseError) : Type {
+        if (extensions.contains(StellaExtension.StructuralSubtyping)) {
+            return expected.ensureSubtype(actual, ctx)
+        }
+
+        return actual.ensureOrError(expected, errorFactory)
+    }
+
+    fun ensureFuncReturnType(actual: Type, expected: Type, ctx: RuleContext) : Type {
+        if (extensions.contains(StellaExtension.StructuralSubtyping)) {
+            actual.ensureSubtype(expected, ctx)
+
+            return expected
+        }
+
+        return actual.ensure(expected, ctx)
+    }
+
+    private fun ensureWithContext(actual: Type, expected: Type, ctx: RuleContext) {
+        if (actual is ErrorType) return
+
+        if (extensions.contains(StellaExtension.StructuralSubtyping)) {
+            actual.ensureSubtype(expected, ctx)
+        }
+        else {
+            actual.ensure(expected, ctx)
+        }
     }
 
     private fun removeVariable(variableName: String) {

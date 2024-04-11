@@ -49,13 +49,16 @@ fun debug() {
     val codeExample = """
 language core;
 
-extend with #natural-literals, #type-cast, #pairs, #top-type, #structural-subtyping;
+extend with #natural-literals,
+            #top-type,
+            #bottom-type,
+            #structural-subtyping;
 
-fn main(n : Nat) -> Nat {
-	return (1 cast as {Nat, Nat}).1
+fn main(b : Bool) -> (fn(Top) -> Top) {
+    return fn(x : Bool) {
+        return false
+    }
 }
-
-
     """.trimIndent()
 
     val parser = getParser(codeExample)

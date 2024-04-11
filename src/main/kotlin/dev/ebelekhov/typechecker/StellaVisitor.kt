@@ -197,14 +197,12 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitList(ctx: stellaParser.ListContext): Type {
-        val listType = funcContext
-            .getCurrentExpectedReturnType()
-            ?.ensureOrError(ListType::class) { UnexpectedListError(ctx) }
+        val listType = funcContext.getCurrentExpectedReturnType(ListType::class) { UnexpectedListError(ctx) }
 
         if (ctx.exprs.isEmpty()) { return listType ?: throw ExitException(AmbiguousListTypeError(ctx)) }
 
         val firstElemType =
-            if (listType != null)
+            if (listType != null && listType is ListType)
                 funcContext.runWithExpectedReturnType(listType.type, ctx) { ctx.exprs.first().accept(this) }
             else
                 funcContext.runWithoutExpectations { ctx.exprs.first().accept(this) }
@@ -299,21 +297,25 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitAbstraction(ctx: stellaParser.AbstractionContext): Type {
         val expectedFuncType = funcContext
-           .getCurrentExpectedReturnType()
-            ?.ensureOrError(FuncType::class) { type -> UnexpectedLambdaError(type, ctx) }
+           .getCurrentExpectedReturnType(FuncType::class) { type -> UnexpectedLambdaError(type, ctx) }
 
         val params = ctx.paramDecls
-        if (expectedFuncType != null && expectedFuncType.argTypes.size != params.size) {
+        if (expectedFuncType != null &&
+            expectedFuncType is FuncType &&
+            expectedFuncType.argTypes.size != params.size) {
             throw ExitException(UnexpectedNumberOfParametersInLambdaError(expectedFuncType.argTypes.size, ctx))
         }
 
         val paramTypes = params.mapIndexed { idx, value ->
             val type =
-                if (expectedFuncType == null)
+                if (expectedFuncType == null || expectedFuncType !is FuncType)
                     funcContext.runWithoutExpectations { value.stellatype().accept(this) }
                 else
                     funcContext.runWithExpectedReturnType(expectedFuncType.argTypes[idx], ctx) {
-                        value.stellatype().accept(this).ensureOrError(expectedFuncType.argTypes[idx]::class) {
+                        funcContext.ensureFuncArgument(
+                            value.stellatype().accept(this),
+                            expectedFuncType.argTypes[idx],
+                            ctx) {
                             UnexpectedTypeForParameterError(it, expectedFuncType.argTypes[idx], ctx)
                         }
                     }
@@ -323,10 +325,15 @@ class StellaVisitor(private val funcContext: FuncContext)
 
         return funcContext.runWithVariables(paramTypes) {
             val returnType =
-                if (expectedFuncType?.returnType == null)
+                if (expectedFuncType !is FuncType)
                     funcContext.runWithoutExpectations { ctx.returnExpr.accept(this) }
                 else
-                    funcContext.runWithExpectedReturnType(expectedFuncType.returnType, ctx) { ctx.returnExpr.accept(this) }
+                    funcContext.runWithExpectedReturnType(expectedFuncType.returnType, ctx) {
+                        funcContext.ensureFuncReturnType(
+                            ctx.returnExpr.accept(this),
+                            expectedFuncType.returnType,
+                            ctx)
+                    }
 
             FuncType(paramTypes.map { it.second }, returnType)
         }
@@ -637,10 +644,9 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitRef(ctx: stellaParser.RefContext): Type {
         val expectedType = funcContext
-            .getCurrentExpectedReturnType()
-            ?.ensureOrError(ReferenceType::class) { UnexpectedReferenceError(ctx) }
+            .getCurrentExpectedReturnType(ReferenceType::class) { UnexpectedReferenceError(ctx) }
 
-        val innerType = if (expectedType != null)
+        val innerType = if (expectedType != null && expectedType is ReferenceType)
                 funcContext.runWithExpectedReturnType(expectedType.innerType, ctx) { ctx.expr().accept(this) }
             else
                 funcContext.runWithoutExpectations { ctx.expr().accept(this) }
@@ -702,7 +708,7 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitAssign(ctx: stellaParser.AssignContext): Type {
-        funcContext.getCurrentExpectedReturnType()?.ensure(UnitType, ctx)
+        funcContext.getCurrentExpectedReturnType(UnitType::class) { UnexpectedTypeForExpressionError(UnitType, it, ctx) }
 
         val lhsType = funcContext.runWithoutExpectations { ctx.lhs.accept(this) }
         val referenceType = lhsType.ensureOrError(ReferenceType::class) { NotAReferenceError(it, ctx) }
@@ -714,15 +720,14 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitTuple(ctx: stellaParser.TupleContext): Type {
         val tupleType = funcContext
-            .getCurrentExpectedReturnType()
-            ?.ensureOrError(TupleType::class) { UnexpectedTupleError(it, ctx) }
+            .getCurrentExpectedReturnType(TupleType::class) { UnexpectedTupleError(it, ctx) }
 
-        if (tupleType != null && tupleType.types.size != ctx.exprs.size) {
+        if (tupleType != null && tupleType is TupleType && tupleType.types.size != ctx.exprs.size) {
             throw ExitException(UnexpectedTupleLengthError(tupleType, ctx))
         }
 
-        return TupleType(ctx.exprs.mapIndexed() { idx, value ->
-            if (tupleType != null)
+        return TupleType(ctx.exprs.mapIndexed { idx, value ->
+            if (tupleType != null && tupleType is TupleType)
                 funcContext.runWithExpectedReturnType(tupleType.types[idx], ctx) {
                     value.accept(this)
                 }
@@ -735,11 +740,10 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitConsList(ctx: stellaParser.ConsListContext): Type {
         val listType = funcContext
-            .getCurrentExpectedReturnType()
-            ?.ensureOrError(ListType::class) { UnexpectedListError(ctx) }
+            .getCurrentExpectedReturnType(ListType::class) { UnexpectedListError(ctx) }
 
         val headType =
-            if (listType != null)
+            if (listType != null && listType is ListType)
                 funcContext.runWithExpectedReturnType(listType.type, ctx) { ctx.head.accept(this) }
             else
                 funcContext.runWithoutExpectations { ctx.head.accept(this) }
@@ -930,7 +934,7 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitTypeTop(ctx: stellaParser.TypeTopContext?): Type {
-        return TopType()
+        return TopType
     }
 
     override fun visitTypeBool(ctx: stellaParser.TypeBoolContext?): Type {

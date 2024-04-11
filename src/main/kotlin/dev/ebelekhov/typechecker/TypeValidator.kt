@@ -9,7 +9,7 @@ class TypeValidator(
             val program = parser.program()
             val extensions = program.getExtensions()
 
-            val visitor = StellaVisitor(FuncContext(extensions))
+            val visitor = StellaVisitor(FuncContext(extensions.toHashSet()))
 
             program.accept(visitor)
 
