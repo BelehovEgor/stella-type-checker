@@ -28,12 +28,16 @@ enum class StellaExtension(val extensionName: String) {
     References("#references"),
     Panic("#panic"),
     Exceptions("#exceptions"),
-    ExceptionTypeAnnotaion("#exception-type-annotation"),
+    ExceptionTypeAnnotation("#exception-type-annotation"),
+    ExceptionTypeDeclaration("#exception-type-declaration"),
     StructuralSubtyping("#structural-subtyping"),
     AmbiguousTypeAsBottom("#ambiguous-type-as-bottom"),
     OpenVariantExceptions("#open-variant-exceptions"),
+    TypeCast("#type-cast"),
     TryCastAs("#try-cast-as"),
-    TryCastPatterns("#type-cast-patterns");
+    TryCastPatterns("#type-cast-patterns"),
+    TopType("#top-type"),
+    BottomType("#bottom-type");
 
     companion object {
         fun fromString(extension: String): StellaExtension {

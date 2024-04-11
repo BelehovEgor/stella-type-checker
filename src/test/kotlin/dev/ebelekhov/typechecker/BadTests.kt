@@ -27,7 +27,7 @@ class BadTests {
                 val lexer = stellaLexer(CharStreams.fromString(it.readText()))
                 val tokens = CommonTokenStream(lexer)
                 val parser = stellaParser(tokens)
-                val result = TypeValidator(parser, StellaVisitor()).accept()
+                val result = TypeValidator(parser).accept()
                 assertContains(
                     (result.exceptionOrNull() as ExitException).error.getMessage(parser),
                     it.parent.name,

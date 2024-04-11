@@ -49,14 +49,12 @@ fun debug() {
     val codeExample = """
 language core;
 
-extend with #try-cast-as, #structural-patterns, #natural-literals;
+extend with #natural-literals, #type-cast, #pairs, #top-type, #structural-subtyping;
 
 fn main(n : Nat) -> Nat {
-  return try { true } cast as Nat
-    { 1 => 12 }
-    with
-    { 0 }
+	return (1 cast as {Nat, Nat}).1
 }
+
 
     """.trimIndent()
 

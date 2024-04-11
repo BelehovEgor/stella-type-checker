@@ -6,9 +6,12 @@ class TypeValidator(
     private val parser: stellaParser) {
     fun accept() : Result<Unit> {
         return try {
-            val visitor = StellaVisitor(FuncContext(listOf()))
+            val program = parser.program()
+            val extensions = program.getExtensions()
 
-            parser.program().accept(visitor)
+            val visitor = StellaVisitor(FuncContext(extensions))
+
+            program.accept(visitor)
 
             Result.success(Unit)
         } catch (exc: ExitException) {
@@ -16,5 +19,11 @@ class TypeValidator(
         }
     }
 
-
+    private fun stellaParser.ProgramContext.getExtensions(): List<StellaExtension> {
+        val anExtensionContext = extension()
+        return anExtensionContext
+            .filterIsInstance<stellaParser.AnExtensionContext>()
+            .flatMap { it.extensionNames }
+            .map { StellaExtension.fromString(it.text) }
+    }
 }
