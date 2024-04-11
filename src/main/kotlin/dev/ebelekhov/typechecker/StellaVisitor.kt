@@ -9,7 +9,7 @@ import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.tree.RuleNode
 import org.antlr.v4.runtime.tree.TerminalNode
 
-class StellaVisitor(private val funcContext: FuncContext = FuncContext())
+class StellaVisitor(private val funcContext: FuncContext)
     : stellaParserVisitor<Type> {
     override fun visit(tree: ParseTree?): Type {
         TODO("Not yet implemented")
@@ -237,8 +237,25 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         return exprType
     }
 
-    override fun visitTryCastAs(ctx: stellaParser.TryCastAsContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTryCastAs(ctx: stellaParser.TryCastAsContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+
+        funcContext.runWithoutExpectations { ctx.tryExpr.accept(this) }
+
+        val castType = funcContext.runWithoutExpectations { ctx.type_.accept(this) }
+
+        funcContext.runWithExpectedReturnType(castType, ctx) {
+            ctx.pattern_.accept(this).ensureOrError(castType) { UnexpectedPatternForTypeError(it, ctx) }
+        }
+
+        val exprType = if (expectedType != null)
+            funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.expr_.accept(this) }
+        else
+            funcContext.runWithoutExpectations { ctx.expr_.accept(this) }
+
+        funcContext.runWithExpectedReturnType(exprType, ctx) { ctx.fallbackExpr.accept(this) }
+
+        return exprType
     }
 
     override fun visitHead(ctx: stellaParser.HeadContext): Type {
@@ -352,8 +369,18 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
         TODO("Not yet implemented")
     }
 
-    override fun visitTypeCast(ctx: stellaParser.TypeCastContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTypeCast(ctx: stellaParser.TypeCastContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+
+        funcContext.runWithoutExpectations { ctx.expr().accept(this) }
+
+        val castType =
+            if (expectedType != null)
+                funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.type_.accept(this) }
+            else
+                funcContext.runWithoutExpectations { ctx.type_.accept(this) }
+
+        return castType
     }
 
     override fun visitIf(ctx: stellaParser.IfContext): Type {
@@ -571,9 +598,9 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
 
         val tryType = funcContext.runWithoutExpectations { ctx.tryExpr.accept(this) }
 
-        if (tryType is ErrorType) {
-            val fallbackType = funcContext.runWithoutExpectations { ctx.fallbackExpr.accept(this) }
+        val fallbackType = funcContext.runWithoutExpectations { ctx.fallbackExpr.accept(this) }
 
+        if (tryType is ErrorType) {
             return if (fallbackType is ErrorType) expectedType ?: BotType()
                 else fallbackType
         }
@@ -903,7 +930,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitTypeTop(ctx: stellaParser.TypeTopContext?): Type {
-        TODO("Not yet implemented")
+        return TopType()
     }
 
     override fun visitTypeBool(ctx: stellaParser.TypeBoolContext?): Type {
@@ -943,7 +970,7 @@ class StellaVisitor(private val funcContext: FuncContext = FuncContext())
     }
 
     override fun visitTypeBottom(ctx: stellaParser.TypeBottomContext?): Type {
-        TODO("Not yet implemented")
+        return BotType()
     }
 
     override fun visitTypeParens(ctx: stellaParser.TypeParensContext): Type {

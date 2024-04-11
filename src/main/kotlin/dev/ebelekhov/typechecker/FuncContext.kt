@@ -6,7 +6,7 @@ import dev.ebelekhov.typechecker.types.Type
 import dev.ebelekhov.typechecker.types.VariantType
 import org.antlr.v4.runtime.RuleContext
 
-class FuncContext {
+class FuncContext(private val extensions: List<StellaExtension>) {
     private var variables = mutableMapOf<String, MutableList<Type>>()
     private val expectedReturnTypes = mutableListOf<Type?>()
     private var exceptionExpectedType : Type? = null

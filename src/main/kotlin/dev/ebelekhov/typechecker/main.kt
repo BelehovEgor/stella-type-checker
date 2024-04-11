@@ -10,14 +10,14 @@ import kotlin.system.exitProcess
 fun main() {
     debug()
 
-   // run()
+    //run()
 }
 
 fun run() {
     val code = readCode()
 
     val parser = getParser(code)
-    val typeValidator = TypeValidator(parser, StellaVisitor())
+    val typeValidator = TypeValidator(parser)
     val result = typeValidator.accept()
 
     if (result.isFailure) {
@@ -48,22 +48,20 @@ fun getParser(code: String) : stellaParser {
 fun debug() {
     val codeExample = """
 language core;
-extend with #exceptions, #exception-type-declaration, #variants, #structural-patterns, #open-variant-exceptions;
 
-exception variant bool : Bool
-exception variant nat : Nat
+extend with #try-cast-as, #structural-patterns, #natural-literals;
 
-fn fail(n : Nat) -> Bool {
-	return throw(<| bool = true |>)
+fn main(n : Nat) -> Nat {
+  return try { true } cast as Nat
+    { 1 => 12 }
+    with
+    { 0 }
 }
 
-fn main(n : Nat) -> Bool {
-	return try { true } catch { <| bool = true |> => true }
-}
     """.trimIndent()
 
     val parser = getParser(codeExample)
-    val typeValidator = TypeValidator(parser, StellaVisitor())
+    val typeValidator = TypeValidator(parser)
     val result = typeValidator.accept()
 
     if (result.isFailure) {

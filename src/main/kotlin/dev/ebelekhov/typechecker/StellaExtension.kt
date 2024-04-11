@@ -1,6 +1,6 @@
 package dev.ebelekhov.typechecker
 
-enum class StellaExtension(val extensionName: String, val on: Boolean = true) {
+enum class StellaExtension(val extensionName: String) {
     // 1
     UnitType("#unit-type"),
     Pairs("#pairs"),
@@ -12,13 +12,6 @@ enum class StellaExtension(val extensionName: String, val on: Boolean = true) {
     Lists("#lists"),
     Variants("#variants"),
     FixpointCombinator("#fixpoint-combinator"),
-
-    // 2
-    Sequencing("#sequencing"),
-    References("#references"),
-
-    // additional extensions
-    // 1
     NaturalLiterals("#natural-literals"),
     NestedFunctionDeclarations("#nested-function-declarations"),
     NullaryFunctions("#nullary-functions"),
@@ -28,11 +21,23 @@ enum class StellaExtension(val extensionName: String, val on: Boolean = true) {
     LetrecBindings("#letrec-bindings"),
     LetrecManyBindings("#letrec-many-bindings"),
     LetPatterns("#let-patterns"),
-    PatternAscriptions("#pattern-ascriptions");
+    PatternAscriptions("#pattern-ascriptions"),
+
+    // 2
+    Sequencing("#sequencing"),
+    References("#references"),
+    Panic("#panic"),
+    Exceptions("#exceptions"),
+    ExceptionTypeAnnotaion("#exception-type-annotation"),
+    StructuralSubtyping("#structural-subtyping"),
+    AmbiguousTypeAsBottom("#ambiguous-type-as-bottom"),
+    OpenVariantExceptions("#open-variant-exceptions"),
+    TryCastAs("#try-cast-as"),
+    TryCastPatterns("#type-cast-patterns");
 
     companion object {
-        fun isSupported(extension: String): Boolean {
-            return StellaExtension.entries.any { it.on && it.extensionName == extension }
+        fun fromString(extension: String): StellaExtension {
+            return entries.firstOrNull { it.extensionName == extension } ?: error("can't find extension $extension")
         }
     }
 }
