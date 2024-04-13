@@ -197,7 +197,8 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitList(ctx: stellaParser.ListContext): Type {
-        val listType = funcContext.getCurrentExpectedReturnType(ListType::class) { UnexpectedListError(ctx) }
+        var listType = funcContext.getCurrentExpectedReturnType(ListType::class) { UnexpectedListError(ctx) }
+        if (listType is BotType) listType = ListType(BotType())
 
         if (ctx.exprs.isEmpty()) { return listType ?: throw ExitException(AmbiguousListTypeError(ctx)) }
 
@@ -364,9 +365,12 @@ class StellaVisitor(private val funcContext: FuncContext)
             if (variantField.second != null) {
                 funcContext.runWithExpectedReturnType(variantField.second!!, ctx) { ctx.rhs.accept(this) }
             }
+
+            return expectedVariantType
         }
 
-        return expectedVariantType
+        val fieldType = funcContext.runWithoutExpectations { ctx.rhs.accept(this) }
+        return VariantType(listOf(Pair(variantLabel, fieldType)))
     }
 
     override fun visitConstTrue(ctx: stellaParser.ConstTrueContext?): Type {
@@ -459,9 +463,11 @@ class StellaVisitor(private val funcContext: FuncContext)
 
         if (expectedType is SumType) {
             funcContext.runWithExpectedReturnType(expectedType.inl, ctx) { ctx.expr().accept(this) }
+
+            return expectedType
         }
 
-        return expectedType
+        return SumType(funcContext.runWithoutExpectations { ctx.expr().accept(this) }, BotType())
     }
 
     override fun visitGreaterThanOrEqual(ctx: stellaParser.GreaterThanOrEqualContext?): Type {
@@ -475,9 +481,11 @@ class StellaVisitor(private val funcContext: FuncContext)
 
         if (expectedType is SumType) {
             funcContext.runWithExpectedReturnType(expectedType.inr, ctx) { ctx.expr().accept(this) }
+
+            return expectedType
         }
 
-        return expectedType
+        return SumType(BotType(), funcContext.runWithoutExpectations { ctx.expr().accept(this) })
     }
 
     override fun visitMatch(ctx: stellaParser.MatchContext): Type {
