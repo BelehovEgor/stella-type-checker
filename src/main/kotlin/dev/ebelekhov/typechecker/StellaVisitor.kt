@@ -443,9 +443,9 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitPanic(ctx: stellaParser.PanicContext): Type {
-        val expectedType = funcContext.getCurrentExpectedReturnType()
-
-        return expectedType ?: BotType()
+        return funcContext
+            .getCurrentExpectedReturnType()
+            ?: throw ExitException(AmbiguousPanicTypeError(ctx))
     }
 
     override fun visitLessThanOrEqual(ctx: stellaParser.LessThanOrEqualContext?): Type {

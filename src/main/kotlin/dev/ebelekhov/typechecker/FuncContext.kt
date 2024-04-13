@@ -111,20 +111,26 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
     }
 
     fun getCurrentExpectedReturnType() : Type? {
-        return expectedReturnTypes.lastOrNull()
+        val expected = expectedReturnTypes.lastOrNull()
+
+        if (extensions.contains(StellaExtension.AmbiguousTypeAsBottom) && expected == null) {
+            return BotType()
+        }
+
+        return expected
     }
 
     fun  <T : Type> getCurrentExpectedReturnType(expectedType: KClass<T>, errorFactory: (Type) -> BaseError) : Type? {
-        var expected = expectedReturnTypes.lastOrNull()
+        val expected = expectedReturnTypes.lastOrNull()
 
         if (extensions.contains(StellaExtension.AmbiguousTypeAsBottom) && expected == null) {
-            expected = BotType()
+            return BotType()
         }
 
         if (expected == null) return null
 
         if (extensions.contains(StellaExtension.StructuralSubtyping) &&
-            (expected.isSubtype(TopType, RuleContext()) || expected::class == expectedType)) {
+            (expected is TopType || expected::class == expectedType)) {
              return expected
         }
 
