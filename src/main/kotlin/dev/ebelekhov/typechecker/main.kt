@@ -49,15 +49,12 @@ fun debug() {
     val codeExample = """
 language core;
 
-extend with #natural-literals,
-            #top-type,
-            #bottom-type,
-            #structural-subtyping;
+extend with #ambiguous-type-as-bottom, #structural-subtyping, #sum-types;
 
-fn main(b : Bool) -> (fn(Top) -> Top) {
-    return fn(x : Bool) {
-        return false
-    }
+fn main(n : Nat) -> Bool + Nat {
+  return (fn (x : Nat) {
+    return inr(x) // в этом месте выводится тип-сумма Bot + Nat
+  })(n)
 }
     """.trimIndent()
 

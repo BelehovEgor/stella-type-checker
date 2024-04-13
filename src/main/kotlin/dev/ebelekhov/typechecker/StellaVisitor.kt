@@ -345,24 +345,25 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitVariant(ctx: stellaParser.VariantContext): Type {
         val expectedVariantType = funcContext
-            .getCurrentExpectedReturnType()
-            ?.ensureOrError(VariantType::class) { UnexpectedVariantError(it, ctx) }
+            .getCurrentExpectedReturnType(VariantType::class) { UnexpectedVariantError(it, ctx) }
             ?: throw ExitException(AmbiguousVariantTypeError(ctx))
 
         val variantLabel = ctx.label.text
-        val variantField = expectedVariantType.variants.firstOrNull { it.first == variantLabel }
-            ?: throw ExitException(UnexpectedVariantLabelError(variantLabel, expectedVariantType, ctx))
+        if (expectedVariantType is VariantType) {
+            val variantField = expectedVariantType.variants.firstOrNull { it.first == variantLabel }
+                ?: throw ExitException(UnexpectedVariantLabelError(variantLabel, expectedVariantType, ctx))
 
-        if (variantField.second == null && ctx.rhs != null) {
-            throw ExitException(UnexpectedDataForNullaryLabelError(expectedVariantType, ctx))
-        }
+            if (variantField.second == null && ctx.rhs != null) {
+                throw ExitException(UnexpectedDataForNullaryLabelError(expectedVariantType, ctx))
+            }
 
-        if (variantField.second != null && ctx.rhs == null) {
-            throw ExitException(MissingDataForLabelError(expectedVariantType, ctx))
-        }
+            if (variantField.second != null && ctx.rhs == null) {
+                throw ExitException(MissingDataForLabelError(expectedVariantType, ctx))
+            }
 
-        if (variantField.second != null) {
-            funcContext.runWithExpectedReturnType(variantField.second!!, ctx) { ctx.rhs.accept(this) }
+            if (variantField.second != null) {
+                funcContext.runWithExpectedReturnType(variantField.second!!, ctx) { ctx.rhs.accept(this) }
+            }
         }
 
         return expectedVariantType
@@ -453,11 +454,12 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitInl(ctx: stellaParser.InlContext): Type {
         val expectedType = funcContext
-            .getCurrentExpectedReturnType()
-            ?.ensureOrError(SumType::class) { UnexpectedInjectionError(it, ctx) }
+            .getCurrentExpectedReturnType(SumType::class) { UnexpectedInjectionError(it, ctx) }
             ?: throw ExitException(AmbiguousSumTypeError(ctx))
 
-        funcContext.runWithExpectedReturnType(expectedType.inl, ctx) { ctx.expr().accept(this) }
+        if (expectedType is SumType) {
+            funcContext.runWithExpectedReturnType(expectedType.inl, ctx) { ctx.expr().accept(this) }
+        }
 
         return expectedType
     }
@@ -468,11 +470,12 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitInr(ctx: stellaParser.InrContext): Type {
         val expectedType = funcContext
-            .getCurrentExpectedReturnType()
-            ?.ensureOrError(SumType::class) { UnexpectedInjectionError(it, ctx) }
+            .getCurrentExpectedReturnType(SumType::class) { UnexpectedInjectionError(it, ctx) }
             ?: throw ExitException(AmbiguousSumTypeError(ctx))
 
-        funcContext.runWithExpectedReturnType(expectedType.inr, ctx) { ctx.expr().accept(this) }
+        if (expectedType is SumType) {
+            funcContext.runWithExpectedReturnType(expectedType.inr, ctx) { ctx.expr().accept(this) }
+        }
 
         return expectedType
     }
@@ -911,7 +914,8 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitPatternVar(ctx: stellaParser.PatternVarContext): Type {
-        val varType = funcContext.getCurrentExpectedReturnType() ?: throw ExitException(AmbiguousPatternTypeError(ctx))
+        val varType = funcContext.getCurrentExpectedReturnType()
+            ?: throw ExitException(AmbiguousPatternTypeError(ctx))
         funcContext.addVariable(ctx.name.text, varType)
 
         return varType
