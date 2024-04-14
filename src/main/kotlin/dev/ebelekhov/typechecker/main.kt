@@ -8,9 +8,9 @@ import java.util.*
 import kotlin.system.exitProcess
 
 fun main() {
-    debug()
+    //debug()
 
-    //run()
+    run()
 }
 
 fun run() {
@@ -49,11 +49,12 @@ fun debug() {
     val codeExample = """
 language core;
 
-extend with #exceptions, #natural-literals, #exception-type-declaration;
+extend with #ambiguous-type-as-bottom, #structural-subtyping, #variants;
 
-exception type = Nat
-fn main(n : Nat) -> Nat {
-  return (if false then throw(1) else fn (x : Nat) { return x }) (0)
+fn main(n : Nat) -> <| a : Nat, b : Bool |> {
+  return (fn (x : Nat) {
+    return <| a = x |>
+  })(n)
 }
     """.trimIndent()
 
