@@ -179,13 +179,16 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitThrow(ctx: stellaParser.ThrowContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+            ?: throw ExitException(AmbiguousThrowTypeError(ctx))
+
         val exceptionType = funcContext.getExceptionExpectedType()
 
         funcContext.runWithExpectedReturnType(exceptionType, ctx) {
             ctx.expr().accept(this)
         }
 
-        return ErrorType(exceptionType)
+        return expectedType
     }
 
     override fun visitMultiply(ctx: stellaParser.MultiplyContext?): Type {
@@ -614,14 +617,13 @@ class StellaVisitor(private val funcContext: FuncContext)
     override fun visitTryWith(ctx: stellaParser.TryWithContext): Type {
         val expectedType = funcContext.getCurrentExpectedReturnType()
 
-        val tryType = funcContext.runWithoutExpectations { ctx.tryExpr.accept(this) }
+        val tryType =
+            if (expectedType != null)
+                funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.tryExpr.accept(this) }
+            else
+                funcContext.runWithoutExpectations { ctx.tryExpr.accept(this) }
 
-        val fallbackType = funcContext.runWithoutExpectations { ctx.fallbackExpr.accept(this) }
-
-        if (tryType is ErrorType) {
-            return if (fallbackType is ErrorType) expectedType ?: BotType()
-                else fallbackType
-        }
+        funcContext.runWithExpectedReturnType(tryType, ctx) { ctx.fallbackExpr.accept(this) }
 
         if (expectedType != null) tryType.ensure(expectedType, ctx)
 

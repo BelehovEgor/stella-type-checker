@@ -156,7 +156,7 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
     }
 
     private fun ensureWithContext(actual: Type, expected: Type, ctx: RuleContext) {
-        if (actual is ErrorType) return
+        //if (actual is ErrorType) return
 
         if (extensions.contains(StellaExtension.StructuralSubtyping)) {
             actual.ensureSubtype(expected, ctx)

@@ -48,11 +48,12 @@ fun getParser(code: String) : stellaParser {
 fun debug() {
     val codeExample = """
 language core;
-extend with #ambiguous-type-as-bottom, #structural-subtyping, #sum-types;
-fn main(n : Nat) -> Bool + Nat {
-  return (fn (x : Nat) {
-    return inr(x) // в этом месте выводится тип-сумма Bot + Nat
-  })(n)
+
+extend with #exceptions, #natural-literals, #exception-type-declaration;
+
+exception type = Nat
+fn main(n : Nat) -> Nat {
+  return (if false then throw(1) else fn (x : Nat) { return x }) (0)
 }
     """.trimIndent()
 
