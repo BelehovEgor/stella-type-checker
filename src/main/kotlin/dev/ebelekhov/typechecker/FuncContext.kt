@@ -2,10 +2,7 @@ package dev.ebelekhov.typechecker
 
 import dev.ebelekhov.typechecker.errors.BaseError
 import dev.ebelekhov.typechecker.errors.ExceptionTypeNotDeclaredError
-import dev.ebelekhov.typechecker.types.ErrorType
-import dev.ebelekhov.typechecker.types.TopType
-import dev.ebelekhov.typechecker.types.Type
-import dev.ebelekhov.typechecker.types.VariantType
+import dev.ebelekhov.typechecker.types.*
 import org.antlr.v4.runtime.RuleContext
 import kotlin.reflect.KClass
 
@@ -114,17 +111,30 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
     }
 
     fun getCurrentExpectedReturnType() : Type? {
-        return expectedReturnTypes.lastOrNull()
+        val expected = expectedReturnTypes.lastOrNull()
+
+        if (extensions.contains(StellaExtension.AmbiguousTypeAsBottom) && expected == null) {
+            return BotType()
+        }
+
+        return expected
     }
 
     fun  <T : Type> getCurrentExpectedReturnType(expectedType: KClass<T>, errorFactory: (Type) -> BaseError) : Type? {
         val expected = expectedReturnTypes.lastOrNull()
 
-        if (extensions.contains(StellaExtension.StructuralSubtyping)) {
-            if (expected == TopType) return expected
+        if (extensions.contains(StellaExtension.AmbiguousTypeAsBottom) && expected == null) {
+            return BotType()
         }
 
-        return expected?.ensureOrError(expectedType, errorFactory)
+        if (expected == null) return null
+
+        if (extensions.contains(StellaExtension.StructuralSubtyping) &&
+            (expected is TopType || expected::class == expectedType)) {
+             return expected
+        }
+
+        return expected.ensureOrError(expectedType, errorFactory)
     }
 
     fun ensureFuncArgument(actual: Type, expected: Type, ctx: RuleContext, errorFactory: (Type) -> BaseError) : Type {
@@ -146,7 +156,7 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
     }
 
     private fun ensureWithContext(actual: Type, expected: Type, ctx: RuleContext) {
-        if (actual is ErrorType) return
+        //if (actual is ErrorType) return
 
         if (extensions.contains(StellaExtension.StructuralSubtyping)) {
             actual.ensureSubtype(expected, ctx)

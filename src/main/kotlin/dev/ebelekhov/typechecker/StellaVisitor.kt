@@ -179,13 +179,16 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitThrow(ctx: stellaParser.ThrowContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+            ?: throw ExitException(AmbiguousThrowTypeError(ctx))
+
         val exceptionType = funcContext.getExceptionExpectedType()
 
         funcContext.runWithExpectedReturnType(exceptionType, ctx) {
             ctx.expr().accept(this)
         }
 
-        return ErrorType(exceptionType)
+        return expectedType
     }
 
     override fun visitMultiply(ctx: stellaParser.MultiplyContext?): Type {
@@ -197,7 +200,8 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitList(ctx: stellaParser.ListContext): Type {
-        val listType = funcContext.getCurrentExpectedReturnType(ListType::class) { UnexpectedListError(ctx) }
+        var listType = funcContext.getCurrentExpectedReturnType(ListType::class) { UnexpectedListError(ctx) }
+        if (listType is BotType) listType = ListType(BotType())
 
         if (ctx.exprs.isEmpty()) { return listType ?: throw ExitException(AmbiguousListTypeError(ctx)) }
 
@@ -345,27 +349,31 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitVariant(ctx: stellaParser.VariantContext): Type {
         val expectedVariantType = funcContext
-            .getCurrentExpectedReturnType()
-            ?.ensureOrError(VariantType::class) { UnexpectedVariantError(it, ctx) }
+            .getCurrentExpectedReturnType(VariantType::class) { UnexpectedVariantError(it, ctx) }
             ?: throw ExitException(AmbiguousVariantTypeError(ctx))
 
         val variantLabel = ctx.label.text
-        val variantField = expectedVariantType.variants.firstOrNull { it.first == variantLabel }
-            ?: throw ExitException(UnexpectedVariantLabelError(variantLabel, expectedVariantType, ctx))
+        if (expectedVariantType is VariantType) {
+            val variantField = expectedVariantType.variants.firstOrNull { it.first == variantLabel }
+                ?: throw ExitException(UnexpectedVariantLabelError(variantLabel, expectedVariantType, ctx))
 
-        if (variantField.second == null && ctx.rhs != null) {
-            throw ExitException(UnexpectedDataForNullaryLabelError(expectedVariantType, ctx))
+            if (variantField.second == null && ctx.rhs != null) {
+                throw ExitException(UnexpectedDataForNullaryLabelError(expectedVariantType, ctx))
+            }
+
+            if (variantField.second != null && ctx.rhs == null) {
+                throw ExitException(MissingDataForLabelError(expectedVariantType, ctx))
+            }
+
+            if (variantField.second != null) {
+                funcContext.runWithExpectedReturnType(variantField.second!!, ctx) { ctx.rhs.accept(this) }
+            }
+
+            return expectedVariantType
         }
 
-        if (variantField.second != null && ctx.rhs == null) {
-            throw ExitException(MissingDataForLabelError(expectedVariantType, ctx))
-        }
-
-        if (variantField.second != null) {
-            funcContext.runWithExpectedReturnType(variantField.second!!, ctx) { ctx.rhs.accept(this) }
-        }
-
-        return expectedVariantType
+        val fieldType = funcContext.runWithoutExpectations { ctx.rhs.accept(this) }
+        return VariantType(listOf(Pair(variantLabel, fieldType)))
     }
 
     override fun visitConstTrue(ctx: stellaParser.ConstTrueContext?): Type {
@@ -438,9 +446,9 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitPanic(ctx: stellaParser.PanicContext): Type {
-        val expectedType = funcContext.getCurrentExpectedReturnType()
-
-        return expectedType ?: BotType()
+        return funcContext
+            .getCurrentExpectedReturnType()
+            ?: throw ExitException(AmbiguousPanicTypeError(ctx))
     }
 
     override fun visitLessThanOrEqual(ctx: stellaParser.LessThanOrEqualContext?): Type {
@@ -453,13 +461,16 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitInl(ctx: stellaParser.InlContext): Type {
         val expectedType = funcContext
-            .getCurrentExpectedReturnType()
-            ?.ensureOrError(SumType::class) { UnexpectedInjectionError(it, ctx) }
+            .getCurrentExpectedReturnType(SumType::class) { UnexpectedInjectionError(it, ctx) }
             ?: throw ExitException(AmbiguousSumTypeError(ctx))
 
-        funcContext.runWithExpectedReturnType(expectedType.inl, ctx) { ctx.expr().accept(this) }
+        if (expectedType is SumType) {
+            funcContext.runWithExpectedReturnType(expectedType.inl, ctx) { ctx.expr().accept(this) }
 
-        return expectedType
+            return expectedType
+        }
+
+        return SumType(funcContext.runWithoutExpectations { ctx.expr().accept(this) }, BotType())
     }
 
     override fun visitGreaterThanOrEqual(ctx: stellaParser.GreaterThanOrEqualContext?): Type {
@@ -468,13 +479,16 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitInr(ctx: stellaParser.InrContext): Type {
         val expectedType = funcContext
-            .getCurrentExpectedReturnType()
-            ?.ensureOrError(SumType::class) { UnexpectedInjectionError(it, ctx) }
+            .getCurrentExpectedReturnType(SumType::class) { UnexpectedInjectionError(it, ctx) }
             ?: throw ExitException(AmbiguousSumTypeError(ctx))
 
-        funcContext.runWithExpectedReturnType(expectedType.inr, ctx) { ctx.expr().accept(this) }
+        if (expectedType is SumType) {
+            funcContext.runWithExpectedReturnType(expectedType.inr, ctx) { ctx.expr().accept(this) }
 
-        return expectedType
+            return expectedType
+        }
+
+        return SumType(BotType(), funcContext.runWithoutExpectations { ctx.expr().accept(this) })
     }
 
     override fun visitMatch(ctx: stellaParser.MatchContext): Type {
@@ -603,14 +617,13 @@ class StellaVisitor(private val funcContext: FuncContext)
     override fun visitTryWith(ctx: stellaParser.TryWithContext): Type {
         val expectedType = funcContext.getCurrentExpectedReturnType()
 
-        val tryType = funcContext.runWithoutExpectations { ctx.tryExpr.accept(this) }
+        val tryType =
+            if (expectedType != null)
+                funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.tryExpr.accept(this) }
+            else
+                funcContext.runWithoutExpectations { ctx.tryExpr.accept(this) }
 
-        val fallbackType = funcContext.runWithoutExpectations { ctx.fallbackExpr.accept(this) }
-
-        if (tryType is ErrorType) {
-            return if (fallbackType is ErrorType) expectedType ?: BotType()
-                else fallbackType
-        }
+        funcContext.runWithExpectedReturnType(tryType, ctx) { ctx.fallbackExpr.accept(this) }
 
         if (expectedType != null) tryType.ensure(expectedType, ctx)
 
@@ -911,7 +924,8 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitPatternVar(ctx: stellaParser.PatternVarContext): Type {
-        val varType = funcContext.getCurrentExpectedReturnType() ?: throw ExitException(AmbiguousPatternTypeError(ctx))
+        val varType = funcContext.getCurrentExpectedReturnType()
+            ?: throw ExitException(AmbiguousPatternTypeError(ctx))
         funcContext.addVariable(ctx.name.text, varType)
 
         return varType

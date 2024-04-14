@@ -8,9 +8,9 @@ import java.util.*
 import kotlin.system.exitProcess
 
 fun main() {
-    debug()
+    //debug()
 
-    //run()
+    run()
 }
 
 fun run() {
@@ -49,15 +49,12 @@ fun debug() {
     val codeExample = """
 language core;
 
-extend with #natural-literals,
-            #top-type,
-            #bottom-type,
-            #structural-subtyping;
+extend with #ambiguous-type-as-bottom, #structural-subtyping, #variants;
 
-fn main(b : Bool) -> (fn(Top) -> Top) {
-    return fn(x : Bool) {
-        return false
-    }
+fn main(n : Nat) -> <| a : Nat, b : Bool |> {
+  return (fn (x : Nat) {
+    return <| a = x |>
+  })(n)
 }
     """.trimIndent()
 
