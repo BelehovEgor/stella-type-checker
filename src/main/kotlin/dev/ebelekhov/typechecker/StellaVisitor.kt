@@ -403,9 +403,16 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitIf(ctx: stellaParser.IfContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+
         funcContext.runWithExpectedReturnType(BoolType, ctx) { ctx.condition.accept(this) }
 
-        val thenType = ctx.thenExpr.accept(this)
+        val thenType =
+            if (expectedType != null)
+                funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.thenExpr.accept(this) }
+            else
+                funcContext.runWithoutExpectations { ctx.thenExpr.accept(this) }
+
         funcContext.runWithExpectedReturnType(thenType, ctx) { ctx.elseExpr.accept(this) }
 
         return thenType
@@ -433,7 +440,10 @@ class StellaVisitor(private val funcContext: FuncContext)
     override fun visitDeref(ctx: stellaParser.DerefContext): Type {
         val expectedType = funcContext.getCurrentExpectedReturnType()
 
-        val exprType = funcContext.runWithoutExpectations { ctx.expr().accept(this) }
+        val exprType = if (expectedType != null)
+                funcContext.runWithExpectedReturnType(ReferenceType(expectedType), ctx) { ctx.expr().accept(this) }
+            else
+                funcContext.runWithoutExpectations { ctx.expr().accept(this) }
         val refType = exprType.ensureOrError(ReferenceType::class) { NotAReferenceError(exprType, ctx) }
 
         if (expectedType != null) refType.innerType.ensure(expectedType, ctx)
