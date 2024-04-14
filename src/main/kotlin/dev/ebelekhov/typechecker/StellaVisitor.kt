@@ -196,12 +196,9 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitConstMemory(ctx: stellaParser.ConstMemoryContext): Type {
-        val expectedType = funcContext.getCurrentExpectedReturnType()
+        val expectedType = funcContext
+            .getCurrentExpectedReturnType(ReferenceType::class) { UnexpectedMemoryAddressError(ctx, it) }
             ?: throw ExitException(AmbiguousReferenceTypeError(ctx))
-
-        if (expectedType !is ReferenceType) {
-            throw ExitException(UnexpectedMemoryAddressError(ctx, expectedType))
-        }
 
         return expectedType
     }
