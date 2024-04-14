@@ -195,8 +195,15 @@ class StellaVisitor(private val funcContext: FuncContext)
         TODO("Not yet implemented")
     }
 
-    override fun visitConstMemory(ctx: stellaParser.ConstMemoryContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitConstMemory(ctx: stellaParser.ConstMemoryContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+            ?: throw ExitException(AmbiguousReferenceTypeError(ctx))
+
+        if (expectedType !is ReferenceType) {
+            throw ExitException(UnexpectedMemoryAddressError(ctx, expectedType))
+        }
+
+        return expectedType
     }
 
     override fun visitList(ctx: stellaParser.ListContext): Type {

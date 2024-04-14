@@ -12,6 +12,5 @@ class UnexpectedListError(private val ctx: RuleContext) : BaseError() {
                 ожидается не список
         """.trimIndent()
     }
-
 }
 
