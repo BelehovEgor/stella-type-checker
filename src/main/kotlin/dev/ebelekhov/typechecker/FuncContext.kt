@@ -1,5 +1,6 @@
 package dev.ebelekhov.typechecker
 
+import com.sun.org.apache.xpath.internal.operations.Bool
 import dev.ebelekhov.typechecker.errors.BaseError
 import dev.ebelekhov.typechecker.errors.ExceptionTypeNotDeclaredError
 import dev.ebelekhov.typechecker.types.*
@@ -11,6 +12,10 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
     private val expectedReturnTypes = mutableListOf<Type?>()
     private var exceptionExpectedType : Type? = null
     private var exceptionVariantTypes = mutableListOf<Pair<String, Type?>>()
+
+    fun hasExtension(extension: StellaExtension): Boolean {
+        return extensions.contains(extension)
+    }
 
     fun addExceptionExpectedType(type: Type) {
         exceptionExpectedType = type

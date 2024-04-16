@@ -557,33 +557,43 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitRecord(ctx: stellaParser.RecordContext): Type {
         val expectedType = funcContext
-            .getCurrentExpectedReturnType()
-            ?.ensureOrError(RecordType::class) { UnexpectedRecordError(ctx) }
+            .getCurrentExpectedReturnType(RecordType::class) { UnexpectedRecordError(ctx) }
+
+        if (expectedType is RecordType) {
+            val fields = ctx.bindings.map {
+                val rhsExpectedType = expectedType.getTypeByName(it.name.text)
+
+                val rhsType =
+                    if (rhsExpectedType == null)
+                        funcContext.runWithoutExpectations { it.rhs.accept(this) }
+                    else
+                        funcContext.runWithExpectedReturnType(rhsExpectedType, ctx) { it.rhs.accept(this) }
+
+                Pair(it.name.text, rhsType)
+            }
+            val recordType = RecordType(fields)
+
+            if (!funcContext.hasExtension(StellaExtension.StructuralSubtyping)) {
+                if (fields.any { expectedType.getTypeByName(it.first) == null }) {
+                    throw ExitException(UnexpectedRecordFieldsError(recordType, expectedType, ctx))
+                }
+            }
+
+            if (expectedType.fields.any { expectedField -> !fields.any {expectedField.first == it.first} }) {
+                throw ExitException(MissingRecordFieldsError(recordType, expectedType, ctx))
+            }
+
+            return expectedType
+        }
 
         val fields = ctx.bindings.map {
-            val rhsExpectedType = expectedType?.getTypeByName(it.name.text)
-
-            val rhsType =
-                if (rhsExpectedType == null)
-                    funcContext.runWithoutExpectations { it.rhs.accept(this) }
-                else
-                    funcContext.runWithExpectedReturnType(rhsExpectedType, ctx) { it.rhs.accept(this) }
+            val rhsType = funcContext.runWithoutExpectations { it.rhs.accept(this) }
 
             Pair(it.name.text, rhsType)
         }
         val recordType = RecordType(fields)
 
-        if (expectedType != null &&
-            fields.any { expectedType.getTypeByName(it.first) == null }) {
-            throw ExitException(UnexpectedRecordFieldsError(recordType, expectedType, ctx))
-        }
-
-        if (expectedType != null &&
-            expectedType.fields.any { expectedField -> !fields.any {expectedField.first == it.first} }) {
-            throw ExitException(MissingRecordFieldsError(recordType, expectedType, ctx))
-        }
-
-        return expectedType ?: recordType
+        return recordType
     }
 
     override fun visitLogicAnd(ctx: stellaParser.LogicAndContext): Type {
