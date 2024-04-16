@@ -12,6 +12,5 @@ class UnexpectedRecordError(private val ctx: RuleContext) : BaseError() {
                 ожидается не запись
         """.trimIndent()
     }
-
 }
 

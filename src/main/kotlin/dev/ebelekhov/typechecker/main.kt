@@ -17,7 +17,7 @@ fun run() {
     val code = readCode()
 
     val parser = getParser(code)
-    val typeValidator = TypeValidator(parser, StellaVisitor())
+    val typeValidator = TypeValidator(parser)
     val result = typeValidator.accept()
 
     if (result.isFailure) {
@@ -49,18 +49,17 @@ fun debug() {
     val codeExample = """
 language core;
 
-extend with #variants, #unit-type;
-fn foo(succeed : Bool) -> <|failure : Nat, value : Nat|> {
-  	return <| value = 0 |>
-}
+extend with #ambiguous-type-as-bottom, #structural-subtyping, #variants;
 
-fn main(succeed : Nat) -> <|value : Nat, failure : Nat|> {
-  return foo(true)
+fn main(n : Nat) -> <| a : Nat, b : Bool |> {
+  return (fn (x : Nat) {
+    return <| a = x |>
+  })(n)
 }
     """.trimIndent()
 
     val parser = getParser(codeExample)
-    val typeValidator = TypeValidator(parser, StellaVisitor())
+    val typeValidator = TypeValidator(parser)
     val result = typeValidator.accept()
 
     if (result.isFailure) {

@@ -1,19 +1,29 @@
 package dev.ebelekhov.typechecker
 
 import dev.ebelekhov.typechecker.antlr.parser.stellaParser
-import dev.ebelekhov.typechecker.antlr.parser.stellaParserVisitor
-import dev.ebelekhov.typechecker.types.Type
 
 class TypeValidator(
-    private val parser: stellaParser,
-    private val visitor: stellaParserVisitor<Type>) {
+    private val parser: stellaParser) {
     fun accept() : Result<Unit> {
         return try {
-            parser.program().accept(visitor)
+            val program = parser.program()
+            val extensions = program.getExtensions()
+
+            val visitor = StellaVisitor(FuncContext(extensions.toHashSet()))
+
+            program.accept(visitor)
 
             Result.success(Unit)
         } catch (exc: ExitException) {
             Result.failure(exc)
         }
+    }
+
+    private fun stellaParser.ProgramContext.getExtensions(): List<StellaExtension> {
+        val anExtensionContext = extension()
+        return anExtensionContext
+            .filterIsInstance<stellaParser.AnExtensionContext>()
+            .flatMap { it.extensionNames }
+            .map { StellaExtension.fromString(it.text) }
     }
 }
