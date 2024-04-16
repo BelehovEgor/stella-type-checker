@@ -1,6 +1,7 @@
 package dev.ebelekhov.typechecker.types
 
 import dev.ebelekhov.typechecker.ExitException
+import dev.ebelekhov.typechecker.errors.MissingRecordFieldsError
 import dev.ebelekhov.typechecker.errors.UnexpectedRecordFieldsError
 import org.antlr.v4.runtime.RuleContext
 
@@ -22,7 +23,7 @@ data class RecordType(val fields: List<Pair<String, Type>>) : Type {
             .map { x -> Pair(x, this.fields.firstOrNull { y -> x.first == y.first }) }
             .filter { it.second != null }
         if (commonFields.count() != other.fields.count()) {
-            throw ExitException(UnexpectedRecordFieldsError(this, other, ctx))
+            throw ExitException(MissingRecordFieldsError(this, other, ctx))
         }
 
         return commonFields.all {
