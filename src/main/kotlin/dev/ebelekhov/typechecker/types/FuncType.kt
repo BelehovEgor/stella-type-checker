@@ -1,5 +1,7 @@
 package dev.ebelekhov.typechecker.types
 
+import dev.ebelekhov.typechecker.ExitException
+import dev.ebelekhov.typechecker.errors.IncorrectNumberOfArgumentsError
 import org.antlr.v4.runtime.RuleContext
 
 data class FuncType(val argTypes: List<Type>, val returnType: Type) : Type {
@@ -12,8 +14,12 @@ data class FuncType(val argTypes: List<Type>, val returnType: Type) : Type {
 
         if (other !is FuncType) return false
 
-        if (!other.returnType.isSubtype(this.returnType, ctx)) return false
+        if (!this.returnType.isSubtype(other.returnType, ctx)) return false
 
-        return this.argTypes.withIndex().all { it.value.isSubtype(other.argTypes[it.index], ctx) }
+        if (other.argTypes.count() != this.argTypes.count()) {
+            throw ExitException(IncorrectNumberOfArgumentsError(this.argTypes.count(), other.argTypes.count(), ctx))
+        }
+
+        return other.argTypes.withIndex().all { it.value.isSubtype(this.argTypes[it.index], ctx) }
     }
 }
