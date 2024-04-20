@@ -320,7 +320,7 @@ class StellaVisitor(private val funcContext: FuncContext)
                     funcContext.runWithoutExpectations { value.stellatype().accept(this) }
                 else
                     funcContext.runWithExpectedReturnType(expectedFuncType.argTypes[idx], ctx) {
-                        funcContext.ensureFuncArgument(
+                        funcContext.ensureOrErrorWithContext(
                             value.stellatype().accept(this),
                             expectedFuncType.argTypes[idx],
                             ctx) {
@@ -337,7 +337,7 @@ class StellaVisitor(private val funcContext: FuncContext)
                     funcContext.runWithoutExpectations { ctx.returnExpr.accept(this) }
                 else
                     funcContext.runWithExpectedReturnType(expectedFuncType.returnType, ctx) {
-                        funcContext.ensureFuncReturnType(
+                        funcContext.ensureWithContext(
                             ctx.returnExpr.accept(this),
                             expectedFuncType.returnType,
                             ctx)
@@ -516,7 +516,7 @@ class StellaVisitor(private val funcContext: FuncContext)
         val casesExprTypes = ctx.cases.map { case ->
             funcContext.runWithScope {
                 funcContext.runWithExpectedReturnType(matchCaseType, ctx) {
-                    case.pattern().accept(this).ensureOrError(matchCaseType) {
+                    funcContext.ensureOrErrorWithContext(case.pattern().accept(this), matchCaseType, ctx) {
                         UnexpectedPatternForTypeError(matchCaseType, case.pattern())
                     }
                 }
@@ -688,7 +688,7 @@ class StellaVisitor(private val funcContext: FuncContext)
             else
                 funcContext.runWithoutExpectations { ctx.expr().accept(this) }
 
-        return ReferenceType(innerType)
+        return expectedType ?: ReferenceType(innerType)
     }
 
     override fun visitDotTuple(ctx: stellaParser.DotTupleContext): Type {
@@ -929,8 +929,13 @@ class StellaVisitor(private val funcContext: FuncContext)
         return UnitType
     }
 
-    override fun visitPatternCastAs(ctx: stellaParser.PatternCastAsContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitPatternCastAs(ctx: stellaParser.PatternCastAsContext): Type {
+        val expectedType = funcContext.getCurrentExpectedReturnType()
+
+        val castType = funcContext.runWithoutExpectations { ctx.type_.accept(this) }
+        val patternType = funcContext.runWithExpectedReturnType(castType, ctx) { ctx.pattern_.accept(this)}
+
+        return expectedType ?: patternType
     }
 
     override fun visitPatternInt(ctx: stellaParser.PatternIntContext?): Type {

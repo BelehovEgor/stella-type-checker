@@ -37,7 +37,10 @@ enum class StellaExtension(val extensionName: String) {
     TryCastAs("#try-cast-as"),
     TryCastPatterns("#type-cast-patterns"),
     TopType("#top-type"),
-    BottomType("#bottom-type");
+    BottomType("#bottom-type"),
+
+    // 3
+    ArithmeticOperators("#arithmetic-operators");
 
     companion object {
         fun fromString(extension: String): StellaExtension {
