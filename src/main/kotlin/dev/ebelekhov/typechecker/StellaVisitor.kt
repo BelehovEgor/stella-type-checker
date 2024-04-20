@@ -932,27 +932,10 @@ class StellaVisitor(private val funcContext: FuncContext)
     override fun visitPatternCastAs(ctx: stellaParser.PatternCastAsContext): Type {
         val expectedType = funcContext.getCurrentExpectedReturnType()
 
-        val patternType =
-            if (expectedType != null)
-                funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.pattern_.accept(this)}
-            else
-                funcContext.runWithoutExpectations { ctx.pattern_.accept(this) }
-
         val castType = funcContext.runWithoutExpectations { ctx.type_.accept(this) }
+        val patternType = funcContext.runWithExpectedReturnType(castType, ctx) { ctx.pattern_.accept(this)}
 
-        funcContext.ensureOrErrorWithContext(patternType, castType, ctx) {
-            UnexpectedPatternForTypeError(it, ctx)
-        }
-
-        if (ctx.pattern_ is stellaParser.PatternVarContext) {
-
-
-            funcContext.addVariable((ctx.pattern_ as stellaParser.PatternVarContext).name.text, castType)
-
-            return patternType
-        }
-
-        return patternType
+        return expectedType ?: patternType
     }
 
     override fun visitPatternInt(ctx: stellaParser.PatternIntContext?): Type {
