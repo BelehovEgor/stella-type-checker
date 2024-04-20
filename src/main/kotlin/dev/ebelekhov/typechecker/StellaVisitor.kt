@@ -354,7 +354,10 @@ class StellaVisitor(private val funcContext: FuncContext)
     override fun visitVariant(ctx: stellaParser.VariantContext): Type {
         val expectedVariantType = funcContext
             .getCurrentExpectedReturnType(VariantType::class) { UnexpectedVariantError(it, ctx) }
-            ?: throw ExitException(AmbiguousVariantTypeError(ctx))
+
+        if (expectedVariantType == null && !funcContext.hasExtension(StellaExtension.StructuralSubtyping)) {
+            throw ExitException(AmbiguousVariantTypeError(ctx))
+        }
 
         val variantLabel = ctx.label.text
         if (expectedVariantType is VariantType) {
@@ -617,7 +620,9 @@ class StellaVisitor(private val funcContext: FuncContext)
                 }
 
                 funcContext.runWithExpectedReturnType(patternType, ctx) {
-                    it.expr().accept(this)
+                    funcContext.ensureOrErrorWithContext(it.expr().accept(this), patternType, ctx) {
+                        UnexpectedPatternForTypeError(it, ctx)
+                    }
                 }
 
                 if (!isExhaustiveMatchPattern(patternType, ctx.patternBindings.map { it.pattern() })) {

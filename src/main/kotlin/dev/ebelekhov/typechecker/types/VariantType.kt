@@ -1,6 +1,8 @@
 package dev.ebelekhov.typechecker.types
 
 import dev.ebelekhov.typechecker.ExitException
+import dev.ebelekhov.typechecker.errors.MissingTypeForLabelError
+import dev.ebelekhov.typechecker.errors.UnexpectedTypeForNullaryLabelError
 import dev.ebelekhov.typechecker.errors.UnexpectedVariantLabelError
 import org.antlr.v4.runtime.RuleContext
 
@@ -21,6 +23,18 @@ data class VariantType(val variants: List<Pair<String, Type?>>) : Type {
             val field = this.variants.first { x -> commonFields.all { y -> x.first != y.first.first } }
 
             throw ExitException(UnexpectedVariantLabelError(field.first, other, ctx))
+        }
+
+        if (commonFields.any { it.first.second != null && it.second?.second == null }) {
+            val field = commonFields.first { it.first.second != null && it.second?.second == null }
+
+            throw ExitException(MissingTypeForLabelError(field.first.second!!, ctx))
+        }
+
+        if (commonFields.any { it.first.second == null && it.second?.second != null }) {
+            val field = commonFields.first { it.first.second == null && it.second?.second != null }
+
+            throw ExitException(UnexpectedTypeForNullaryLabelError(field.second!!.second!!, ctx))
         }
 
         return commonFields.all {
