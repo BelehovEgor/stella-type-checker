@@ -12,6 +12,7 @@ data class ReferenceType(val innerType: Type) : Type {
 
         if (other !is ReferenceType) return false
 
-        return this.innerType.isSubtype(other.innerType, ctx)
+        return this.innerType.isSubtype(other.innerType, ctx) &&
+               other.innerType.isSubtype(this.innerType, ctx)
     }
 }

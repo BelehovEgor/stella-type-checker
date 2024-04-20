@@ -1,6 +1,5 @@
 package dev.ebelekhov.typechecker
 
-import com.sun.org.apache.xpath.internal.operations.Bool
 import dev.ebelekhov.typechecker.errors.BaseError
 import dev.ebelekhov.typechecker.errors.ExceptionTypeNotDeclaredError
 import dev.ebelekhov.typechecker.types.*
@@ -142,7 +141,7 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
         return expected.ensureOrError(expectedType, errorFactory)
     }
 
-    fun ensureFuncArgument(actual: Type, expected: Type, ctx: RuleContext, errorFactory: (Type) -> BaseError) : Type {
+    fun ensureOrErrorWithContext(actual: Type, expected: Type, ctx: RuleContext, errorFactory: (Type) -> BaseError) : Type {
         if (extensions.contains(StellaExtension.StructuralSubtyping)) {
             return expected.ensureSubtype(actual, ctx)
         }
@@ -150,7 +149,7 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
         return actual.ensureOrError(expected, errorFactory)
     }
 
-    fun ensureFuncReturnType(actual: Type, expected: Type, ctx: RuleContext) : Type {
+    fun ensureWithContext(actual: Type, expected: Type, ctx: RuleContext) : Type {
         if (extensions.contains(StellaExtension.StructuralSubtyping)) {
             actual.ensureSubtype(expected, ctx)
 
@@ -158,17 +157,6 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
         }
 
         return actual.ensure(expected, ctx)
-    }
-
-    private fun ensureWithContext(actual: Type, expected: Type, ctx: RuleContext) {
-        //if (actual is ErrorType) return
-
-        if (extensions.contains(StellaExtension.StructuralSubtyping)) {
-            actual.ensureSubtype(expected, ctx)
-        }
-        else {
-            actual.ensure(expected, ctx)
-        }
     }
 
     private fun removeVariable(variableName: String) {
