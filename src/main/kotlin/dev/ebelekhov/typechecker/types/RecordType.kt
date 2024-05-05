@@ -27,7 +27,7 @@ data class RecordType(val fields: List<Pair<String, Type>>) : Type {
         }
 
         return commonFields.all {
-            it.first.second.isSubtype(it.second!!.second, ctx)
+            it.second!!.second.isSubtype(it.first.second, ctx)
         }
     }
 }
