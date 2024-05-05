@@ -42,7 +42,7 @@ data class VariantType(val variants: List<Pair<String, Type?>>) : Type {
                     && it.second!!.second == null ||
             it.first.second != null
                     && it.second!!.second != null
-                    && it.first.second!!.isSubtype(it.second!!.second!!, ctx)
+                    && it.second!!.second!!.isSubtype(it.first.second!!, ctx)
         }
     }
 }

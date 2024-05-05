@@ -204,22 +204,37 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitList(ctx: stellaParser.ListContext): Type {
-        var listType = funcContext.getCurrentExpectedReturnType(ListType::class) { UnexpectedListError(ctx) }
-        if (listType is BotType) listType = ListType(BotType())
-
-        if (ctx.exprs.isEmpty()) { return listType ?: throw ExitException(AmbiguousListTypeError(ctx)) }
-
-        val firstElemType =
-            if (listType != null && listType is ListType)
-                funcContext.runWithExpectedReturnType(listType.type, ctx) { ctx.exprs.first().accept(this) }
-            else
-                funcContext.runWithoutExpectations { ctx.exprs.first().accept(this) }
-
-        ctx.exprs.forEach {
-            funcContext.runWithExpectedReturnType(firstElemType, ctx) { it.accept(this) }
+        val listType = funcContext.getCurrentExpectedReturnType(ListType::class) { UnexpectedListError(ctx) }
+        val listElementType = when(listType) {
+            is ListType -> listType.type
+            is BotType -> BotType()
+            else -> null
         }
 
-        return ListType(firstElemType)
+        if (ctx.exprs.isEmpty()) {
+            return ListType(listElementType ?: throw ExitException(AmbiguousListTypeError(ctx)))
+        }
+
+        val types = ctx.exprs.map {
+            if (listElementType != null)
+                funcContext.runWithExpectedReturnType(listElementType, ctx) { it.accept(this) }
+            else
+                funcContext.runWithoutExpectations { it.accept(this) }
+        }
+
+        var minType = types.firstOrNull() ?: BotType()
+        for (i in types) {
+            if (i != minType) { // TODO get min type from types
+                minType = BotType()
+                break
+            }
+        }
+
+
+        return if (listElementType != null)
+                ListType(listElementType)
+            else
+                ListType(minType)
     }
 
     override fun visitTryCatch(ctx: stellaParser.TryCatchContext): Type {
@@ -259,7 +274,9 @@ class StellaVisitor(private val funcContext: FuncContext)
         else
             funcContext.runWithoutExpectations { ctx.expr_.accept(this) }
 
-        funcContext.runWithExpectedReturnType(exprType, ctx) { ctx.fallbackExpr.accept(this) }
+        funcContext.runWithExpectedReturnType(expectedType ?: exprType, ctx) {
+            ctx.fallbackExpr.accept(this)
+        }
 
         return exprType
     }
@@ -443,15 +460,22 @@ class StellaVisitor(private val funcContext: FuncContext)
     override fun visitDeref(ctx: stellaParser.DerefContext): Type {
         val expectedType = funcContext.getCurrentExpectedReturnType()
 
-        val exprType = if (expectedType != null)
-                funcContext.runWithExpectedReturnType(ReferenceType(expectedType), ctx) { ctx.expr().accept(this) }
+        val refType =
+            if (expectedType != null)
+                funcContext.runWithExpectedReturnType(ReferenceType(expectedType), ctx) {
+                    val exprType = ctx.expr().accept(this)
+
+                    val exprRefType = exprType.ensureOrError(ReferenceType::class) { NotAReferenceError(exprType, ctx) }
+                    funcContext.ensureWithContext(exprRefType.innerType, expectedType, ctx)
+
+                    ReferenceType(expectedType)
+                }
             else
-                funcContext.runWithoutExpectations { ctx.expr().accept(this) }
-        val refType = exprType.ensureOrError(ReferenceType::class) { NotAReferenceError(exprType, ctx) }
+                funcContext.runWithoutExpectations {
+                    ctx.expr().accept(this).ensureOrError(ReferenceType::class) { NotAReferenceError(it, ctx) }
+                }
 
-        if (expectedType != null) refType.innerType.ensure(expectedType, ctx)
-
-        return refType.innerType
+        return (refType as ReferenceType).innerType
     }
 
     override fun visitIsEmpty(ctx: stellaParser.IsEmptyContext): Type {
@@ -665,7 +689,9 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitTypeAsc(ctx: stellaParser.TypeAscContext): Type {
         val expectedType = ctx.stellatype().accept(this)
-        return funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.expr().accept(this) }
+        funcContext.runWithExpectedReturnType(expectedType, ctx) { ctx.expr().accept(this) }
+
+        return expectedType
     }
 
     override fun visitNatRec(ctx: stellaParser.NatRecContext): Type {
@@ -755,7 +781,11 @@ class StellaVisitor(private val funcContext: FuncContext)
         val lhsType = funcContext.runWithoutExpectations { ctx.lhs.accept(this) }
         val referenceType = lhsType.ensureOrError(ReferenceType::class) { NotAReferenceError(it, ctx) }
 
-        funcContext.runWithExpectedReturnType(referenceType.innerType, ctx) { ctx.rhs.accept(this) }
+        funcContext.runWithExpectedReturnType(referenceType.innerType, ctx) {
+            funcContext.ensureWithContext(ReferenceType(ctx.rhs.accept(this)), referenceType, ctx)
+
+            ctx.rhs.accept(this)
+        }
 
         return UnitType
     }
@@ -790,10 +820,16 @@ class StellaVisitor(private val funcContext: FuncContext)
             else
                 funcContext.runWithoutExpectations { ctx.head.accept(this) }
 
-        val expectedListType = ListType(headType)
-        funcContext.runWithExpectedReturnType(expectedListType, ctx) { ctx.tail.accept(this) }
+        if (listType is ListType) {
+            funcContext.runWithExpectedReturnType(listType, ctx) { ctx.tail.accept(this) }
 
-        return expectedListType
+            return listType
+        } else {
+            val expectedListType = ListType(headType)
+            funcContext.runWithExpectedReturnType(expectedListType, ctx) { ctx.tail.accept(this) }
+
+            return expectedListType
+        }
     }
 
     override fun visitPatternBinding(ctx: stellaParser.PatternBindingContext?): Type {
