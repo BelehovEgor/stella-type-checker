@@ -41,9 +41,5 @@ sealed interface Type {
     fun isSubtype(other: Type, ctx: RuleContext): Boolean {
         return this == other || other == TopType
     }
-
-    private fun compareWithAuto() {
-
-    }
 }
 

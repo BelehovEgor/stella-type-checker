@@ -2,34 +2,36 @@ package dev.ebelekhov.typechecker.types
 
 import dev.ebelekhov.typechecker.ExitException
 import dev.ebelekhov.typechecker.errors.BaseError
+import dev.ebelekhov.typechecker.errors.OccursCheckInfiniteTypeError
 import dev.ebelekhov.typechecker.errors.UnexpectedTypeForExpressionError
 import org.antlr.v4.runtime.RuleContext
 import kotlin.reflect.KClass
 
-data class AutoType(val constraints: HashSet<Type> = hashSetOf()) : Type {
+data class AutoType(var constraint: Type? = null) : Type {
     override fun toString(): String {
-        return "auto ${constraints.joinToString { it.toString() }}"
+        return "auto ${constraint ?: ""}"
     }
 
     override fun ensure(expected: Type, ctx: RuleContext): Type {
         return when(expected) {
             is AutoType -> {
-                constraints.addAll(expected.constraints)
-
-                if (constraints.size > 1) {
+                if (constraint != null && expected.constraint != null && constraint != expected.constraint) {
                     throw ExitException(UnexpectedTypeForExpressionError(expected, this, ctx))
                 }
 
-                this
+                expected.constraint = expected.constraint ?: constraint
+                constraint = constraint ?: expected.constraint
+
+                expected
             }
             else -> {
-                constraints.add(expected)
-
-                if (constraints.size > 1) {
+                if (constraint != null && constraint != expected) {
                     throw ExitException(UnexpectedTypeForExpressionError(expected, this, ctx))
                 }
 
-                constraints.first().ensure(expected, ctx)
+                constraint = constraint ?: expected
+
+                this
             }
         }
     }
@@ -37,55 +39,60 @@ data class AutoType(val constraints: HashSet<Type> = hashSetOf()) : Type {
     override fun ensureOrError(expected: Type, errorFactory: (Type) -> BaseError): Type {
         return when(expected) {
             is AutoType -> {
-                constraints.addAll(expected.constraints)
-
-                if (constraints.size > 1) {
+                if (constraint != null && expected.constraint != null && constraint != expected.constraint) {
                     throw ExitException(errorFactory(this))
                 }
 
-                this
+                expected.constraint = expected.constraint ?: constraint
+                constraint = constraint ?: expected.constraint
+
+                expected
             }
             else -> {
-                constraints.add(expected)
-
-                if (constraints.size > 1) {
+                if (constraint != null && constraint != expected) {
                     throw ExitException(errorFactory(this))
                 }
 
-                constraints.first().ensureOrError(expected, errorFactory)
+                constraint = constraint ?: expected
+
+                this
             }
         }
     }
 
     override fun <T : Type> ensureOrError(expectedType: KClass<T>, errorFactory: (Type) -> BaseError): T {
-        if (constraints.size > 1) {
-            throw ExitException(errorFactory(this))
-        }
+        if (constraint != null) return constraint!!.ensureOrError(expectedType, errorFactory)
 
-        return constraints.first().ensureOrError(expectedType, errorFactory)
+        return when(expectedType) {
+            ListType::class -> {
+                constraint = ListType(AutoType())
+
+                constraint as T
+            }
+            else -> TODO()
+        }
     }
 
     override fun isSubtype(other: Type, ctx: RuleContext): Boolean {
-        val constraint = constraints.firstOrNull { !it.isSubtype(other, ctx) }
-        if (constraint != null) {
-            throw ExitException(UnexpectedTypeForExpressionError(constraint, other, ctx))
+        if (constraint == null) {
+            constraint = other
         }
 
-        return true
+        return constraint!!.isSubtype(other, ctx)
     }
 
     override fun equals(other: Any?): Boolean {
         return when(other) {
             is AutoType -> {
-                if (this.constraints.containsAll(other.constraints)) {
-                    other.constraints.addAll(this.constraints)
+                if (other.constraint == null || this.constraint == other.constraint) {
+                    other.constraint = this.constraint
 
                     return true
                 }
 
                 return false
             }
-            else -> super.equals(other)
+            else -> constraint?.equals(other) ?: true
         }
     }
 

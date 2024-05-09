@@ -41,7 +41,8 @@ enum class StellaExtension(val extensionName: String) {
 
     // 3
     ArithmeticOperators("#arithmetic-operators"),
-    TypeReconstruction("#type-reconstruction");
+    TypeReconstruction("#type-reconstruction"),
+    UniversalTypes("#universal-types");
 
     companion object {
         fun fromString(extension: String): StellaExtension {

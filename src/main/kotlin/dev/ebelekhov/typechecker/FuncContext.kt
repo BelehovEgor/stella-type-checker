@@ -82,9 +82,7 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
         try {
             val returnType = action()
 
-            ensureWithContext(returnType, expectedReturnType, ctx)
-
-            return returnType
+            return ensureWithContext(returnType, expectedReturnType, ctx)
         }
         finally {
             expectedReturnTypes.removeLast()
@@ -126,6 +124,12 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
 
     fun  <T : Type> getCurrentExpectedReturnType(expectedType: KClass<T>, errorFactory: (Type) -> BaseError) : Type? {
         val expected = expectedReturnTypes.lastOrNull()
+
+        if (extensions.contains(StellaExtension.TypeReconstruction) &&
+            expected is AutoType &&
+            expected.constraint == null) {
+            return expected
+        }
 
         if (extensions.contains(StellaExtension.AmbiguousTypeAsBottom) && expected == null) {
             return BotType()

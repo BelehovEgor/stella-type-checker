@@ -207,6 +207,7 @@ class StellaVisitor(private val funcContext: FuncContext)
         val listType = funcContext.getCurrentExpectedReturnType(ListType::class) { UnexpectedListError(ctx) }
         val listElementType = when(listType) {
             is ListType -> listType.type
+            is AutoType -> AutoType()
             is BotType -> BotType()
             else -> null
         }
@@ -443,10 +444,17 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitApplication(ctx: stellaParser.ApplicationContext): Type {
-        val expectedFunType =
-            funcContext
-                .runWithoutExpectations { ctx.`fun`.accept(this) }
-                .ensureOrError(FuncType::class) { NotAFunctionError(it, ctx.`fun`) }
+        val funType = funcContext.runWithoutExpectations { ctx.`fun`.accept(this) }
+
+        val expectedFunType = when(funType) {
+            is FuncType -> funType
+            is AutoType -> when(funType.constraint) {
+                is FuncType -> funType.constraint
+                null -> throw ExitException(OccursCheckInfiniteTypeError(funType, funType, ctx)) // костыль полный
+                else -> throw ExitException(NotAFunctionError(funType, ctx.`fun`))
+            }
+            else -> throw ExitException(NotAFunctionError(funType, ctx.`fun`))
+        } as FuncType
 
         if (expectedFunType.argTypes.size != ctx.args.size) {
             throw ExitException(IncorrectNumberOfArgumentsError(ctx.args.size, expectedFunType.argTypes.size, ctx))
@@ -515,6 +523,10 @@ class StellaVisitor(private val funcContext: FuncContext)
             return expectedType
         }
 
+        if (expectedType is AutoType) {
+            return SumType(funcContext.runWithoutExpectations { ctx.expr().accept(this) }, AutoType())
+        }
+
         return SumType(funcContext.runWithoutExpectations { ctx.expr().accept(this) }, BotType())
     }
 
@@ -531,6 +543,10 @@ class StellaVisitor(private val funcContext: FuncContext)
             funcContext.runWithExpectedReturnType(expectedType.inr, ctx) { ctx.expr().accept(this) }
 
             return expectedType
+        }
+
+        if (expectedType is AutoType) {
+            return SumType(AutoType(), funcContext.runWithoutExpectations { ctx.expr().accept(this) })
         }
 
         return SumType(BotType(), funcContext.runWithoutExpectations { ctx.expr().accept(this) })
