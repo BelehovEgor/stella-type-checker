@@ -249,7 +249,9 @@ class StellaVisitor(private val funcContext: FuncContext)
 
         funcContext.runWithScope {
             funcContext.runWithExpectedReturnType(exceptionType, ctx) {
-                ctx.pat.accept(this).ensureOrError(exceptionType) { UnexpectedPatternForTypeError(it, ctx) }
+                funcContext.ensureOrErrorWithContext(ctx.pat.accept(this), exceptionType, ctx) {
+                    UnexpectedPatternForTypeError(it, ctx)
+                }
             }
 
             funcContext.runWithExpectedReturnType(exprType, ctx) { ctx.fallbackExpr.accept(this) }
@@ -266,7 +268,9 @@ class StellaVisitor(private val funcContext: FuncContext)
         val castType = funcContext.runWithoutExpectations { ctx.type_.accept(this) }
 
         funcContext.runWithExpectedReturnType(castType, ctx) {
-            ctx.pattern_.accept(this).ensureOrError(castType) { UnexpectedPatternForTypeError(it, ctx) }
+            funcContext.ensureOrErrorWithContext(ctx.pattern_.accept(this), castType, ctx) {
+                UnexpectedPatternForTypeError(it, ctx)
+            }
         }
 
         val exprType = if (expectedType != null)
@@ -678,7 +682,7 @@ class StellaVisitor(private val funcContext: FuncContext)
 
         funcContext.runWithExpectedReturnType(tryType, ctx) { ctx.fallbackExpr.accept(this) }
 
-        if (expectedType != null) tryType.ensure(expectedType, ctx)
+        if (expectedType != null) funcContext.ensureWithContext(tryType, expectedType, ctx)
 
         return tryType
     }
@@ -699,11 +703,11 @@ class StellaVisitor(private val funcContext: FuncContext)
 
         val zType = funcContext.runWithoutExpectations { ctx.initial.accept(this) }
 
-        funcContext.runWithExpectedReturnType(FuncType(listOf(NatType), FuncType(listOf(zType), zType)), ctx) {
+        val natRecFunc = funcContext.runWithExpectedReturnType(FuncType(listOf(NatType), FuncType(listOf(zType), zType)), ctx) {
             ctx.step.accept(this)
         }
 
-        return zType
+        return ((natRecFunc as FuncType).returnType as FuncType).returnType
     }
 
     override fun visitUnfold(ctx: stellaParser.UnfoldContext?): Type {
@@ -745,7 +749,7 @@ class StellaVisitor(private val funcContext: FuncContext)
         if (funcType.argTypes.size != 1) {
             throw ExitException(NotAFunctionError(expressionType, ctx.expr()))
         }
-        funcType.argTypes[0].ensure(funcType.returnType, ctx)
+        funcContext.ensureWithContext(funcType.argTypes[0], funcType.returnType, ctx)
 
         return funcType.argTypes.first()
     }
@@ -873,7 +877,9 @@ class StellaVisitor(private val funcContext: FuncContext)
         val valType = ctx.stellatype().accept(this)
 
         return funcContext.runWithExpectedReturnType(valType, ctx) {
-            ctx.pattern().accept(this).ensureOrError(valType) { UnexpectedPatternForTypeError(it, ctx) }
+            funcContext.ensureOrErrorWithContext(ctx.pattern().accept(this), valType, ctx)  {
+                UnexpectedPatternForTypeError(it, ctx)
+            }
         }
     }
 
@@ -1033,8 +1039,8 @@ class StellaVisitor(private val funcContext: FuncContext)
         TODO("Not yet implemented")
     }
 
-    override fun visitTypeAuto(ctx: stellaParser.TypeAutoContext?): Type {
-        TODO("Not yet implemented")
+    override fun visitTypeAuto(ctx: stellaParser.TypeAutoContext): Type {
+        return AutoType()
     }
 
     override fun visitTypeSum(ctx: stellaParser.TypeSumContext): Type {

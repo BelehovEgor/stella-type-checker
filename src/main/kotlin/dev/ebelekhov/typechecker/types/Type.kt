@@ -10,12 +10,16 @@ import kotlin.reflect.KClass
 sealed interface Type {
 
     fun ensure(expected: Type, ctx: RuleContext) : Type {
+        if (expected is AutoType) return expected.ensure(this, ctx)
+
         if (this == expected) return this
 
         throw ExitException(UnexpectedTypeForExpressionError(expected, this, ctx))
     }
 
     fun ensureOrError(expected: Type, errorFactory: (Type) -> BaseError) : Type {
+        if (expected is AutoType) return expected.ensureOrError(this, errorFactory)
+
         if (this == expected) return this
 
         throw ExitException(errorFactory(this))
@@ -36,6 +40,10 @@ sealed interface Type {
 
     fun isSubtype(other: Type, ctx: RuleContext): Boolean {
         return this == other || other == TopType
+    }
+
+    private fun compareWithAuto() {
+
     }
 }
 

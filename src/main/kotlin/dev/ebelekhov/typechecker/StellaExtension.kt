@@ -40,7 +40,8 @@ enum class StellaExtension(val extensionName: String) {
     BottomType("#bottom-type"),
 
     // 3
-    ArithmeticOperators("#arithmetic-operators");
+    ArithmeticOperators("#arithmetic-operators"),
+    TypeReconstruction("#type-reconstruction");
 
     companion object {
         fun fromString(extension: String): StellaExtension {
