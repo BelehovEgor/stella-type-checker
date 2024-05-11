@@ -17,6 +17,11 @@ fun isExhaustiveMatchPattern(expectedType: Type, patterns: List<stellaParser.Pat
         is TupleType -> checkTuplePattern(expectedType, expandPatterns)
         is RecordType -> checkRecordPattern(expectedType, expandPatterns)
         is ListType -> checkListPattern(expectedType, expandPatterns)
+        is AutoType ->
+            when(expectedType.constraint) {
+                null -> false
+                else -> isExhaustiveMatchPattern(expectedType.constraint!!, expandPatterns)
+            }
         else -> false
     }
 }

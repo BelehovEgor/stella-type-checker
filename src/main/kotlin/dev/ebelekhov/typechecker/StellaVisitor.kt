@@ -204,7 +204,12 @@ class StellaVisitor(private val funcContext: FuncContext)
     }
 
     override fun visitList(ctx: stellaParser.ListContext): Type {
-        val listType = funcContext.getCurrentExpectedReturnType(ListType::class) { UnexpectedListError(ctx) }
+        val listType = funcContext.getCurrentExpectedReturnType(ListType::class) {
+            if (funcContext.hasExtension(StellaExtension.TypeReconstruction))
+                UnexpectedTypeForExpressionError(ListType(AutoType()), it, ctx)
+            else
+                UnexpectedListError(ctx)
+        }
         val listElementType = when(listType) {
             is ListType -> listType.type
             is AutoType -> AutoType()
@@ -346,7 +351,10 @@ class StellaVisitor(private val funcContext: FuncContext)
                             value.stellatype().accept(this),
                             expectedFuncType.argTypes[idx],
                             ctx) {
-                            UnexpectedTypeForParameterError(it, expectedFuncType.argTypes[idx], ctx)
+                            if (funcContext.hasExtension(StellaExtension.TypeReconstruction))
+                                UnexpectedTypeForExpressionError(it, expectedFuncType.argTypes[idx], ctx)
+                            else
+                                UnexpectedTypeForParameterError(it, expectedFuncType.argTypes[idx], ctx)
                         }
                     }
 
@@ -514,7 +522,12 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitInl(ctx: stellaParser.InlContext): Type {
         val expectedType = funcContext
-            .getCurrentExpectedReturnType(SumType::class) { UnexpectedInjectionError(it, ctx) }
+            .getCurrentExpectedReturnType(SumType::class) {
+                if (funcContext.hasExtension(StellaExtension.TypeReconstruction))
+                    UnexpectedTypeForExpressionError(SumType(AutoType(), AutoType()), it, ctx)
+                else
+                    UnexpectedInjectionError(it, ctx)
+            }
             ?: throw ExitException(AmbiguousSumTypeError(ctx))
 
         if (expectedType is SumType) {
@@ -536,7 +549,12 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitInr(ctx: stellaParser.InrContext): Type {
         val expectedType = funcContext
-            .getCurrentExpectedReturnType(SumType::class) { UnexpectedInjectionError(it, ctx) }
+            .getCurrentExpectedReturnType(SumType::class) {
+                if (funcContext.hasExtension(StellaExtension.TypeReconstruction))
+                    UnexpectedTypeForExpressionError(SumType(AutoType(), AutoType()), it, ctx)
+                else
+                    UnexpectedInjectionError(it, ctx)
+            }
             ?: throw ExitException(AmbiguousSumTypeError(ctx))
 
         if (expectedType is SumType) {
@@ -757,7 +775,12 @@ class StellaVisitor(private val funcContext: FuncContext)
         val expressionType =
             if (expectedType != null)
                 funcContext.runWithExpectedReturnType(FuncType(listOf(expectedType), expectedType), ctx) {
-                    ctx.expr().accept(this).ensureOrError(FuncType::class) { NotAFunctionError(it, ctx.expr()) }
+                    ctx.expr().accept(this).ensureOrError(FuncType::class) {
+                        if (funcContext.hasExtension(StellaExtension.TypeReconstruction))
+                            UnexpectedTypeForExpressionError(FuncType(listOf(expectedType), expectedType), it, ctx)
+                        else
+                            NotAFunctionError(it, ctx.expr())
+                    }
                 }
             else
                 funcContext.runWithoutExpectations { ctx.expr().accept(this) }
@@ -832,7 +855,12 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitConsList(ctx: stellaParser.ConsListContext): Type {
         val listType = funcContext
-            .getCurrentExpectedReturnType(ListType::class) { UnexpectedListError(ctx) }
+            .getCurrentExpectedReturnType(ListType::class) {
+                if (funcContext.hasExtension(StellaExtension.TypeReconstruction))
+                    UnexpectedTypeForExpressionError(it, ListType(AutoType()), ctx)
+                else
+                    UnexpectedListError(ctx)
+            }
 
         val headType =
             if (listType != null && listType is ListType)

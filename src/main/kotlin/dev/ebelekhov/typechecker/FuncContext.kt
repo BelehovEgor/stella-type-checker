@@ -126,9 +126,8 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
         val expected = expectedReturnTypes.lastOrNull()
 
         if (extensions.contains(StellaExtension.TypeReconstruction) &&
-            expected is AutoType &&
-            expected.constraint == null) {
-            return expected
+            ((expected is AutoType && expected.constraint == null) || expected == null)) {
+            return expected ?: AutoType()
         }
 
         if (extensions.contains(StellaExtension.AmbiguousTypeAsBottom) && expected == null) {

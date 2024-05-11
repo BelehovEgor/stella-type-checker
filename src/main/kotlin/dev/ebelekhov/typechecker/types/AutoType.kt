@@ -69,6 +69,11 @@ data class AutoType(var constraint: Type? = null) : Type {
 
                 constraint as T
             }
+            SumType::class -> {
+                constraint = SumType(AutoType(), AutoType())
+
+                constraint as T
+            }
             else -> TODO()
         }
     }
