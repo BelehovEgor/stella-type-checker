@@ -474,6 +474,7 @@ class StellaVisitor(private val funcContext: FuncContext)
             }
         }
 
+
         return expectedFunType.returnType
     }
 
