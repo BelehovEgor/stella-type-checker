@@ -2,6 +2,7 @@ package dev.ebelekhov.typechecker
 
 import dev.ebelekhov.typechecker.errors.BaseError
 import dev.ebelekhov.typechecker.errors.ExceptionTypeNotDeclaredError
+import dev.ebelekhov.typechecker.errors.UndefinedTypeVariableError
 import dev.ebelekhov.typechecker.types.*
 import org.antlr.v4.runtime.RuleContext
 import kotlin.reflect.KClass
@@ -11,6 +12,7 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
     private val expectedReturnTypes = mutableListOf<Type?>()
     private var exceptionExpectedType : Type? = null
     private var exceptionVariantTypes = mutableListOf<Pair<String, Type?>>()
+    private val generics = mutableMapOf<String, MutableList<VarType>>()
 
     fun hasExtension(extension: StellaExtension): Boolean {
         return extensions.contains(extension)
@@ -32,6 +34,10 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
             return VariantType(exceptionVariantTypes)
 
         throw ExitException(ExceptionTypeNotDeclaredError())
+    }
+
+    fun getDepthOfGeneric(name: String): Int {
+        return generics[name]?.size ?: 0
     }
 
     fun runWithVariable(name : String,
@@ -61,6 +67,34 @@ class FuncContext(private val extensions: HashSet<StellaExtension>) {
             return action()
         } finally {
             variables = copyState.toMutableMap()
+        }
+    }
+
+    fun runWithGenerics(typeVars: List<VarType>, ctx: RuleContext, action: () -> Type): Type {
+        typeVars.forEach {
+            if (generics.contains(it.name)) {
+                generics[it.name]!!.add(it)
+            } else {
+                generics[it.name] = mutableListOf(it)
+            }
+        }
+
+        try {
+            val type = action()
+
+            val undefined = GenericFuncType.getVars(type).firstOrNull {
+                !generics.contains(it.name)
+            }
+            if (undefined != null) {
+                throw ExitException(UndefinedTypeVariableError(undefined, ctx))
+            }
+
+            return type
+        }
+        finally {
+            typeVars.forEach {
+                generics[it.name]!!.removeLast()
+            }
         }
     }
 

@@ -2,7 +2,6 @@ package dev.ebelekhov.typechecker.types
 
 import dev.ebelekhov.typechecker.ExitException
 import dev.ebelekhov.typechecker.errors.BaseError
-import dev.ebelekhov.typechecker.errors.UnexpectedTypeForExpressionError
 import org.antlr.v4.runtime.RuleContext
 import kotlin.reflect.KClass
 
@@ -14,10 +13,6 @@ data class AutoType(var constraint: Type? = null) : Type {
             null -> "auto T$number"
             else -> "auto T$number($constraint)"
         }
-    }
-
-    override fun ensure(expected: Type, ctx: RuleContext): Type {
-        return ensureOrError(expected) { UnexpectedTypeForExpressionError(this, it, ctx) }
     }
 
     override fun ensureOrError(expected: Type, errorFactory: (Type) -> BaseError): Type {

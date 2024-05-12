@@ -10,15 +10,15 @@ import kotlin.reflect.KClass
 sealed interface Type {
 
     fun ensure(expected: Type, ctx: RuleContext) : Type {
-        if (expected is AutoType) return expected.ensure(this, ctx)
-
-        if (this == expected) return this
-
-        throw ExitException(UnexpectedTypeForExpressionError(expected, this, ctx))
+        return ensureOrError(expected) {
+            throw ExitException(UnexpectedTypeForExpressionError(expected, this, ctx))
+        }
     }
 
     fun ensureOrError(expected: Type, errorFactory: (Type) -> BaseError) : Type {
         if (expected is AutoType) return expected.ensureOrError(this, errorFactory)
+        if (expected is VarType) return expected.ensureOrError(this, errorFactory)
+        if (expected is UniversalType) return expected.ensureOrError(this, errorFactory)
 
         if (this == expected) return this
 
