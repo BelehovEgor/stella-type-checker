@@ -23,3 +23,4 @@ data class FuncType(val argTypes: List<Type>, val returnType: Type) : Type {
         return other.argTypes.withIndex().all { it.value.isSubtype(this.argTypes[it.index], ctx) }
     }
 }
+
