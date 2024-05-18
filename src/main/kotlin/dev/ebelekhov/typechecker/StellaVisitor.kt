@@ -210,7 +210,7 @@ class StellaVisitor(private val funcContext: FuncContext)
 
     override fun visitTypeAbstraction(ctx: stellaParser.TypeAbstractionContext): Type {
         val expectedFuncType = funcContext
-            .getCurrentExpectedReturnType(GenericFuncType::class) { type -> UnexpectedLambdaError(type, ctx) }
+            .getCurrentExpectedReturnType(GenericFuncType::class) { UnexpectedTypeForExpressionError(it, null, ctx) }
 
         val generics = ctx.generics.map { VarType(it.text, funcContext.getDepthOfGeneric(it.text) + 1) }
 
