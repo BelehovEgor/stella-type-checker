@@ -922,8 +922,6 @@ class StellaVisitor(private val funcContext: FuncContext)
         val referenceType = lhsType.ensureOrError(ReferenceType::class) { NotAReferenceError(it, ctx) }
 
         funcContext.runWithExpectedReturnType(referenceType.innerType, ctx) {
-            funcContext.ensureWithContext(ReferenceType(ctx.rhs.accept(this)), referenceType, ctx)
-
             ctx.rhs.accept(this)
         }
 
