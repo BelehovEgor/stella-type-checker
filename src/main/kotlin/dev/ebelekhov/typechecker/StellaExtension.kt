@@ -22,6 +22,7 @@ enum class StellaExtension(val extensionName: String) {
     LetrecManyBindings("#letrec-many-bindings"),
     LetPatterns("#let-patterns"),
     PatternAscriptions("#pattern-ascriptions"),
+    GeneralRecursion("#general-recursion"),
 
     // 2
     Sequencing("#sequencing"),
