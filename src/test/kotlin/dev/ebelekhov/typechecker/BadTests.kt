@@ -20,7 +20,8 @@ class BadTests {
         val resourcesPath = Paths.get(projectDirAbsolutePath, "/src/test/resources/bad")
         val paths = Files
             .walk(resourcesPath)
-            .filter { item -> Files.isRegularFile(item) && item.toString().endsWith(".st") }
+            .filter { item -> Files.isRegularFile(item) &&
+                    (item.toString().endsWith(".st") || item.toString().endsWith(".stella"))}
 
         paths.forEach {
             try {
