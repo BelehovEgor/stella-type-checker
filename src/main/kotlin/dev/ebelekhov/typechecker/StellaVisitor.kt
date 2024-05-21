@@ -1119,6 +1119,11 @@ class StellaVisitor(private val funcContext: FuncContext)
         val expectedType = funcContext.getCurrentExpectedReturnType()
 
         val castType = funcContext.runWithoutExpectations { ctx.type_.accept(this) }
+
+        if (expectedType != null) {
+            funcContext.ensureWithContext(castType, expectedType, ctx)
+        }
+
         val patternType = funcContext.runWithExpectedReturnType(castType, ctx) { ctx.pattern_.accept(this)}
 
         return expectedType ?: patternType
